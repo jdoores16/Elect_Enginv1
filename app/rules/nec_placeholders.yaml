@@ -1,0 +1,4 @@
+service_clearances:
+  working_space_depth_ft: 3
+  working_space_width_in: 30
+conductor_temp_rating_C: 75
