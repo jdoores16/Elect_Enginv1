@@ -1,3 +1,5 @@
+[![CI](https://github.com/jdoores16/Elect_Enginv1/actions/workflows/ci.yml/badge.svg)](https://github.com/jdoores16/Elect_Enginv1/actions/workflows/ci.yml)
+
 # AI Design Engineer V7
 
 AI-powered assistant for generating **electrical power system construction drawings and documents** from text or voice commands.  
