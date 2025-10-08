@@ -48,7 +48,7 @@ def parse_circuits_from_lines(lines: List[str]) -> List[Tuple[str,str]]:
 def extract_panel_specs(lines: List[str]) -> dict:
     """
     Extract panel specifications from OCR text lines.
-    Looks for voltage, phase, wire, amps, mounting, feed, etc.
+    Looks for panel name, voltage, phase, wire, amps, mounting, feed, etc.
     """
     specs = {}
     
@@ -58,6 +58,7 @@ def extract_panel_specs(lines: List[str]) -> dict:
     # Common patterns for panel specifications
     # Each pattern captures only the value, stopping at line breaks or common delimiters
     patterns = {
+        'panel_name': re.compile(r'(?:panel\s*(?:name|id|designation)?|panelboard)\s*:?\s*([A-Z0-9\-]+)', re.IGNORECASE),
         'voltage': re.compile(r'(?:voltage|volt)\s*:?\s*(\d+(?:/\d+)?)\s*v(?:olts?)?', re.IGNORECASE),
         'phase': re.compile(r'(?:phase|phases?)\s*:?\s*(\d+)', re.IGNORECASE),
         'wire': re.compile(r'(?:wire|wires?)\s*:?\s*(\d+)', re.IGNORECASE),

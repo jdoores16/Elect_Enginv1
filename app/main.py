@@ -409,7 +409,8 @@ def export_build_zip(payload: dict):
             
             circuits = parse_circuits_from_lines(all_lines)
             panel_specs = extract_panel_specs(all_lines)
-            panel_name = plan.get("project", "PANEL")
+            # Use panel name from OCR extraction, default to MISSING if not found
+            panel_name = panel_specs.get("panel_name", "MISSING")
             
             # Look for template
             template = find_template(BUCKET, pref)
@@ -532,7 +533,9 @@ def panel_ocr_to_excel(payload: dict):
 
     circuits = parse_circuits_from_lines(all_lines)
     panel_specs = extract_panel_specs(all_lines)
-    panel = payload.get("panel_name") or "PANEL"
+    # Use panel name from OCR extraction, default to MISSING if not found
+    # Allow user override via payload if explicitly provided
+    panel = payload.get("panel_name") or panel_specs.get("panel_name", "MISSING")
 
     # Look for template
     template_path = None
