@@ -119,6 +119,7 @@ const sendBtn = document.getElementById('sendBtn');
 const micBtn = document.getElementById('micBtn');
 const buildBtn = document.getElementById('buildBtn');
 const outputsList = document.getElementById('outputsList');
+const uploadsList = document.getElementById('uploadsList');
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('fileInput');
 
@@ -162,14 +163,14 @@ micBtn.addEventListener('mouseup', () => rec && rec.stop());
 micBtn.addEventListener('mouseleave', () => rec && rec.stop());
 
 // Drag & drop
-function uploadFiles(files) {
-  [...files].forEach(async (file) => {
+async function uploadFiles(files) {
+  for (const file of [...files]) {
     const fd = new FormData();
     fd.append('file', file);
     const r = await fetch('/bucket/upload?session=' + encodeURIComponent(sessionId), { method:'POST', body: fd });
     const j = await r.json();
-    refreshOutputs();
-  });
+  }
+  refreshUploads();
 }
 dropzone.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', (e) => uploadFiles(e.target.files));
@@ -208,6 +209,21 @@ textInput.addEventListener('keypress', (e) => {
   }
 });
 
+async function refreshUploads() {
+  const r = await fetch('/bucket/list?session=' + encodeURIComponent(sessionId));
+  const j = await r.json();
+  uploadsList.innerHTML = '';
+  j.files.forEach(name => {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = '/bucket/file/' + name;
+    a.download = name;
+    a.textContent = name;
+    li.appendChild(a);
+    uploadsList.appendChild(li);
+  });
+}
+
 async function refreshOutputs() {
   const r = await fetch('/outputs/list?session=' + encodeURIComponent(sessionId));
   const j = await r.json();
@@ -244,6 +260,7 @@ buildBtn.addEventListener('click', async () => {
 });
 
 // Initial load
+refreshUploads();
 refreshOutputs();
 
 

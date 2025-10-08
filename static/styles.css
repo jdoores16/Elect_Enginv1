@@ -6,6 +6,10 @@ body { margin: 0; font-family: system-ui, Segoe UI, Roboto, sans-serif; backgrou
 .sidebar h1 { margin:0; font-size: 20px; }
 .dropzone { border: 2px dashed #374151; border-radius: 12px; padding: 24px; text-align: center; cursor: pointer; background:#0b1220; }
 .dropzone:hover { border-color: #6b7280; }
+.uploads h3 { margin: 12px 0; font-size: 14px; color:#9ca3af; }
+.uploads ul { list-style: none; padding:0; margin:0; display: grid; gap:8px; }
+.uploads li a { color:#10b981; text-decoration: none; }
+.uploads li a:hover { text-decoration: underline; }
 .outputs { flex:1; overflow: auto; }
 .outputs h3 { margin: 12px 0; font-size: 14px; color:#9ca3af; }
 .outputs ul { list-style: none; padding:0; margin:0; display: grid; gap:8px; }
