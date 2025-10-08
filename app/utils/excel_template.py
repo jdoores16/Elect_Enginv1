@@ -101,7 +101,7 @@ def read_template_structure(template_path: Path) -> Dict:
 
 
 def apply_template_to_data(
-    circuits: List[Tuple[str, str]], 
+    circuits: List[Dict], 
     panel_name: str,
     template_path: Optional[Path],
     output_path: Path,
@@ -112,8 +112,10 @@ def apply_template_to_data(
     If template is provided, copies entire template and updates:
     - Row 1, Column 1 (A1): Panel identifier/name
     - Rows 2-9, Column B: Panel specifications (voltage, phase, etc.) based on labels in Column A
-    - Circuit data starting from data table row
+    - Circuit data starting from data table row (number, description, breaker_amps, breaker_poles)
     If no template is provided or template fails to load, creates a basic formatted schedule.
+    
+    Circuit data structure: List of dicts with keys: number, description, breaker_amps, breaker_poles
     """
     if template_path and template_path.exists():
         try:
@@ -204,11 +206,13 @@ def apply_template_to_data(
                 logger.warning(f"Could not find data table header, using default row {data_start_row}")
             
             # Fill in circuit data starting from data_start_row
-            # Find which columns contain circuit number and description
+            # Find which columns contain circuit data
             circuit_col = None
             desc_col = None
+            breaker_amps_col = None
+            breaker_poles_col = None
             
-            # Check header row for circuit and description columns
+            # Check header row for data columns
             header_row = data_start_row - 1
             for col_num in range(1, min(16, ws.max_column + 1)):
                 cell_value = ws.cell(row=header_row, column=col_num).value
@@ -218,21 +222,27 @@ def apply_template_to_data(
                         circuit_col = col_num
                     elif 'load' in cell_lower or 'desc' in cell_lower:
                         desc_col = col_num
+                    elif 'breaker' in cell_lower and ('amp' in cell_lower or 'size' in cell_lower):
+                        breaker_amps_col = col_num
+                    elif 'pole' in cell_lower or ('breaker' in cell_lower and 'pole' in cell_lower):
+                        breaker_poles_col = col_num
             
-            # Default columns if not found: circuit in col 7, description in col 1
+            # Default columns if not found
             if not circuit_col:
                 circuit_col = 7
             if not desc_col:
                 desc_col = 1
+            # Breaker columns will be left as None if not found, which is OK
             
-            logger.info(f"Filling circuit data: circuit col={circuit_col}, description col={desc_col}")
+            logger.info(f"Filling circuit data: circuit col={circuit_col}, description col={desc_col}, "
+                       f"breaker amps col={breaker_amps_col}, breaker poles col={breaker_poles_col}")
             
             # Use the first data row as template for formatting
             template_data_row = data_start_row
             
             # Copy formatting from template row to all circuit rows to ensure consistent borders/spacing
             logger.info(f"Copying formatting from template row {template_data_row} to all circuit rows")
-            for idx, (circuit_num, description) in enumerate(circuits):
+            for idx, circuit in enumerate(circuits):
                 target_row = data_start_row + idx
                 
                 # Copy row formatting from template (only if target row doesn't already have it)
@@ -255,9 +265,15 @@ def apply_template_to_data(
                     if template_data_row in ws.row_dimensions and ws.row_dimensions[template_data_row].height:
                         ws.row_dimensions[target_row].height = ws.row_dimensions[template_data_row].height
                 
-                # Now fill in the values
-                ws.cell(row=target_row, column=circuit_col, value=circuit_num)
-                ws.cell(row=target_row, column=desc_col, value=description)
+                # Now fill in the values from circuit dict
+                ws.cell(row=target_row, column=circuit_col, value=circuit['number'])
+                ws.cell(row=target_row, column=desc_col, value=circuit['description'])
+                
+                # Fill breaker data if columns were found
+                if breaker_amps_col:
+                    ws.cell(row=target_row, column=breaker_amps_col, value=circuit['breaker_amps'])
+                if breaker_poles_col:
+                    ws.cell(row=target_row, column=breaker_poles_col, value=circuit['breaker_poles'])
             
             # Note: All formulas from the original template are automatically preserved
             # when we load the template with openpyxl.load_workbook()
@@ -291,10 +307,10 @@ def apply_template_to_data(
         ws.column_dimensions['C'].width = 40
         
         # Fill in circuit data
-        for row_idx, (circuit_num, description) in enumerate(circuits, 2):
+        for row_idx, circuit in enumerate(circuits, 2):
             ws.cell(row=row_idx, column=1, value=panel_name)
-            ws.cell(row=row_idx, column=2, value=circuit_num)
-            ws.cell(row=row_idx, column=3, value=description)
+            ws.cell(row=row_idx, column=2, value=circuit['number'])
+            ws.cell(row=row_idx, column=3, value=circuit['description'])
     
     wb.save(output_path)
     logger.info(f"Saved panel schedule to {output_path}")

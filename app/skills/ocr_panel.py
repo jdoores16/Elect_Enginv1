@@ -1,6 +1,6 @@
 
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 import re
 import logging
 import pytesseract
@@ -25,17 +25,32 @@ def ocr_image_to_lines(image_path: Path) -> List[str]:
         logger.error(f"Error during OCR processing of {image_path}: {e.__class__.__name__}: {e}")
         raise
 
-CIRCUIT_RE = re.compile(r"^(?P<num>\d{1,3})(?:[A-C]?)\s*[-:.\s]?\s*(?P<desc>.+)$", re.IGNORECASE)
+# Enhanced regex to capture breaker amps and pole size
+# Matches patterns like: "1 - Lighting - 20A 1P" or "2  Receptacles  15A  1P"
+CIRCUIT_RE = re.compile(
+    r"^(?P<num>\d{1,3})(?:[A-C]?)?\s*[-:.\s]?\s*(?P<desc>.+?)"
+    r"(?:\s+(?P<amps>\d{1,4})\s*A(?:mp)?s?)?"
+    r"(?:\s+(?P<poles>[123])\s*P(?:ole)?)?.*$",
+    re.IGNORECASE
+)
 
-def parse_circuits_from_lines(lines: List[str]) -> List[Tuple[str,str]]:
+def parse_circuits_from_lines(lines: List[str]) -> List[Dict]:
+    """
+    Parse circuit information from OCR lines.
+    Returns list of dicts with: number, description, breaker_amps, breaker_poles
+    """
     circuits = []
     skipped = 0
     for ln in lines:
         m = CIRCUIT_RE.match(ln)
-        if m:
-            num = m.group("num").strip()
-            desc = m.group("desc").strip()
-            circuits.append((num, desc))
+        if m and m.group("num"):
+            circuit = {
+                'number': m.group("num").strip(),
+                'description': m.group("desc").strip() if m.group("desc") else "",
+                'breaker_amps': m.group("amps") if m.group("amps") else "MISSING",
+                'breaker_poles': m.group("poles") if m.group("poles") else "MISSING"
+            }
+            circuits.append(circuit)
         else:
             skipped += 1
     
