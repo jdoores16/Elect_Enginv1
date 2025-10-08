@@ -1,5 +1,5 @@
 run = "uvicorn app.main:app --host 0.0.0.0 --port 8000"
-modules = ["python-3.11"]
+modules = ["nodejs-20", "web", "python-3.11"]
 
 [nix]
 channel = "stable-25_05"
@@ -32,3 +32,10 @@ outputType = "webview"
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 46615
+externalPort = 3000
+
+[agent]
+expertMode = true
