@@ -137,7 +137,10 @@ function addMsg(role, text) {
 }
 function speak(text) {
   if (!('speechSynthesis' in window)) return;
-  const u = new SpeechSynthesisUtterance(text);
+  // Only speak the first sentence, preserving original punctuation
+  const match = text.match(/^.*?[.!?]/);
+  const firstSentence = match ? match[0] : text;
+  const u = new SpeechSynthesisUtterance(firstSentence);
   u.rate = 0.95;
   u.pitch = 0.7; // deeper tone
   u.volume = 1.0;

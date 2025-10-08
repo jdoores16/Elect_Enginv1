@@ -39,7 +39,7 @@ def health():
     return {"status": "ok"}
 
 # ---- Bucket (drag & drop) ----
-@app.post("/upload")
+@app.post("/bucket/upload")
 async def upload(files: List[UploadFile] = File(...), session: str | None = None):
     BUCKET.mkdir(parents=True, exist_ok=True)
     saved = []
