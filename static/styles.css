@@ -10,6 +10,11 @@ body { margin: 0; font-family: system-ui, Segoe UI, Roboto, sans-serif; backgrou
 .uploads ul { list-style: none; padding:0; margin:0; display: grid; gap:8px; }
 .uploads li a { color:#10b981; text-decoration: none; }
 .uploads li a:hover { text-decoration: underline; }
+.uploads li.uploading { color:#6b7280; font-style: italic; }
+.uploads li.upload-error { color:#ef4444; }
+.uploads .spinner { display: inline-block; animation: spin 1s linear infinite; }
+.uploads .error { color:#ef4444; font-weight: bold; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .outputs { flex:1; overflow: auto; }
 .outputs h3 { margin: 12px 0; font-size: 14px; color:#9ca3af; }
 .outputs ul { list-style: none; padding:0; margin:0; display: grid; gap:8px; }

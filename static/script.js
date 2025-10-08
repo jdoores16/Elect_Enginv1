@@ -167,13 +167,43 @@ micBtn.addEventListener('mouseleave', () => rec && rec.stop());
 
 // Drag & drop
 async function uploadFiles(files) {
-  const fd = new FormData();
-  for (const file of [...files]) {
-    fd.append('files', file);
+  if (!files || files.length === 0) return;
+  
+  // Show files immediately with spinner
+  const fileArray = [...files];
+  fileArray.forEach(file => {
+    const li = document.createElement('li');
+    li.className = 'uploading';
+    li.innerHTML = `<span class="spinner">⟳</span> ${file.name}`;
+    li.dataset.filename = file.name;
+    uploadsList.appendChild(li);
+  });
+  
+  try {
+    const fd = new FormData();
+    for (const file of fileArray) {
+      fd.append('files', file);
+    }
+    const r = await fetch('/bucket/upload?session=' + encodeURIComponent(sessionId), { method:'POST', body: fd });
+    
+    if (!r.ok) {
+      throw new Error(`Upload failed: ${r.status} ${r.statusText}`);
+    }
+    
+    const j = await r.json();
+    
+    // Remove spinner items and refresh with actual uploaded files
+    uploadsList.querySelectorAll('.uploading').forEach(el => el.remove());
+    refreshUploads();
+    
+  } catch (error) {
+    console.error('Upload error:', error);
+    uploadsList.querySelectorAll('.uploading').forEach(el => {
+      el.className = 'upload-error';
+      el.innerHTML = `<span class="error">✗</span> ${el.dataset.filename} - Failed`;
+    });
+    addMsg('ai', `Upload failed. ${error.message}`);
   }
-  const r = await fetch('/bucket/upload?session=' + encodeURIComponent(sessionId), { method:'POST', body: fd });
-  const j = await r.json();
-  refreshUploads();
 }
 dropzone.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', (e) => uploadFiles(e.target.files));
