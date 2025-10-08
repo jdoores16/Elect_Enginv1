@@ -33,10 +33,6 @@ outputType = "webview"
 localPort = 5000
 externalPort = 80
 
-[[ports]]
-localPort = 43935
-externalPort = 3000
-
 [agent]
 expertMode = true
 integrations = ["github:1.0.0"]
