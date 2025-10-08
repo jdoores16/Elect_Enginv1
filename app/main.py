@@ -116,20 +116,35 @@ def run_command(payload: dict):
     if not text:
         raise HTTPException(400, "No command text provided.")
 
+    session = payload.get("session")
+    pref = _session_prefix(session)
+    
+    # Check for reference files in bucket
+    BUCKET.mkdir(exist_ok=True)
+    bucket_files = [p.name for p in BUCKET.iterdir() if p.is_file()]
+    session_files = [f for f in bucket_files if not pref or f.startswith(pref)]
+    
     summary = summarize_intent(text)
     plan = plan_from_prompt(text, str(BUCKET))
     task = (plan.get("task") or "").lower()
 
+    # Build response message
+    file_info = ""
+    if session_files:
+        file_info = f" I see you've uploaded {len(session_files)} reference file(s): {', '.join(session_files[:3])}{'...' if len(session_files) > 3 else ''}."
+    else:
+        file_info = " Do you have any reference files (floor plans, cut sheets, photos) you'd like me to use? You can drag and drop them into the upload area."
+
     if task in ["one_line", "power_plan", "lighting_plan", "revit_package"]:
         return {
             "summary": summary, 
-            "message": f"Got it! I've analyzed your request for a {task.replace('_', ' ')}. Press the Build button when you're ready to generate the outputs.",
+            "message": f"Got it! I've analyzed your request for a {task.replace('_', ' ')}.{file_info} Press the Build button when you're ready to generate the outputs.",
             "plan": plan
         }
 
     return {
         "summary": summary, 
-        "message": "I'm listening and gathering information. Let me know what you'd like to design (one-line, power plan, or lighting plan), then press Build when ready.",
+        "message": f"I'm listening and gathering information.{file_info} Let me know what you'd like to design (one-line, power plan, or lighting plan), then press Build when ready.",
         "plan": plan
     }
 
