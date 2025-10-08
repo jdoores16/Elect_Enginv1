@@ -167,12 +167,12 @@ micBtn.addEventListener('mouseleave', () => rec && rec.stop());
 
 // Drag & drop
 async function uploadFiles(files) {
+  const fd = new FormData();
   for (const file of [...files]) {
-    const fd = new FormData();
-    fd.append('file', file);
-    const r = await fetch('/bucket/upload?session=' + encodeURIComponent(sessionId), { method:'POST', body: fd });
-    const j = await r.json();
+    fd.append('files', file);
   }
+  const r = await fetch('/bucket/upload?session=' + encodeURIComponent(sessionId), { method:'POST', body: fd });
+  const j = await r.json();
   refreshUploads();
 }
 dropzone.addEventListener('click', () => fileInput.click());
