@@ -375,6 +375,36 @@ def export_build_zip(payload: dict):
             pdf_name = dxf_name.replace(".dxf",".pdf")
             dxf_to_pdf(dxf_path, OUT / pdf_name)
             generated.append(pdf_name)
+    
+    elif intent == "panel_schedule":
+        # Use the /panel/ocr_to_excel endpoint logic
+        session = payload.get("session")
+        pref = _session_prefix(session)
+        BUCKET.mkdir(exist_ok=True)
+        
+        # Get image files from bucket
+        image_files = [p.name for p in BUCKET.iterdir() 
+                      if p.is_file() and p.suffix.lower() in [".jpg",".jpeg",".png",".tif",".tiff",".bmp"]
+                      and (not pref or p.name.startswith(pref))]
+        
+        if image_files:
+            all_lines = []
+            for img_name in image_files:
+                lines = ocr_image_to_lines(BUCKET / img_name)
+                all_lines.extend(lines)
+            
+            circuits = parse_circuits_from_lines(all_lines)
+            panel_name = plan.get("project", "PANEL")
+            
+            # Look for template
+            template = find_template(BUCKET, pref)
+            
+            # Generate Excel
+            xlsx_name = f"{pref}panel_schedule_{uuid.uuid4().hex}.xlsx"
+            apply_template_to_data(circuits, panel_name, template, OUT / xlsx_name)
+            generated.append(xlsx_name)
+        else:
+            logger.warning("No image files found for panel schedule generation")
 
     # Optional CSV panel schedule if present in plan
     if "panel_schedule" in plan and isinstance(plan["panel_schedule"], dict):
