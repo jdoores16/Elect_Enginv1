@@ -259,27 +259,12 @@ def apply_template_to_data(
                 ws.cell(row=target_row, column=circuit_col, value=circuit_num)
                 ws.cell(row=target_row, column=desc_col, value=description)
             
-            # Add SUM formulas to row 42 for columns B, C, D, L, M, N
-            # These formulas sum the circuit data from rows 12 to 41
-            sum_row = 42
-            sum_columns = [2, 3, 4, 12, 13, 14]  # B, C, D, L, M, N
+            # Note: All formulas from the original template are automatically preserved
+            # when we load the template with openpyxl.load_workbook()
+            # We only update cells that need circuit data - all other cells including
+            # formula cells remain untouched and functional
             
-            for col in sum_columns:
-                col_letter = openpyxl.utils.get_column_letter(col)
-                formula = f"=SUM({col_letter}12:{col_letter}41)"
-                ws.cell(row=sum_row, column=col, value=formula)
-            
-            logger.info(f"Added SUM formulas to row {sum_row} for columns B, C, D, L, M, N")
-            
-            # Add total formulas to row 44 for columns G, H, I
-            # G44 = SUM(B42+L42), H44 = SUM(C42+M42), I44 = SUM(D42+N42)
-            total_row = 44
-            ws.cell(row=total_row, column=7, value="=SUM(B42+L42)")  # G44
-            ws.cell(row=total_row, column=8, value="=SUM(C42+M42)")  # H44
-            ws.cell(row=total_row, column=9, value="=SUM(D42+N42)")  # I44
-            
-            logger.info(f"Added total formulas to row {total_row} for columns G, H, I")
-            logger.info(f"Applied template with {len(circuits)} circuits")
+            logger.info(f"Applied template with {len(circuits)} circuits (template formulas preserved)")
             
         except Exception as e:
             logger.warning(f"Failed to apply template {template_path.name}: {e.__class__.__name__}: {e}. Falling back to basic format.")
