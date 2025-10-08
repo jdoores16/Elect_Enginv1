@@ -259,6 +259,17 @@ def apply_template_to_data(
                 ws.cell(row=target_row, column=circuit_col, value=circuit_num)
                 ws.cell(row=target_row, column=desc_col, value=description)
             
+            # Add SUM formulas to row 42 for columns B, C, D, L, M, N
+            # These formulas sum the circuit data from rows 12 to 41
+            sum_row = 42
+            sum_columns = [2, 3, 4, 12, 13, 14]  # B, C, D, L, M, N
+            
+            for col in sum_columns:
+                col_letter = openpyxl.utils.get_column_letter(col)
+                formula = f"=SUM({col_letter}12:{col_letter}41)"
+                ws.cell(row=sum_row, column=col, value=formula)
+            
+            logger.info(f"Added SUM formulas to row {sum_row} for columns B, C, D, L, M, N")
             logger.info(f"Applied template with {len(circuits)} circuits")
             
         except Exception as e:
