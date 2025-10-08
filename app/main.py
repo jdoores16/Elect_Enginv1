@@ -149,16 +149,28 @@ def run_command(payload: dict):
         file_info = " Do you have any reference files (floor plans, cut sheets, photos) you'd like me to use? You can drag and drop them into the upload area."
 
     if task == "panel_schedule":
+        # Check if number_of_ckts is specified
+        number_of_ckts = plan.get("number_of_ckts")
+        
+        if not number_of_ckts:
+            # First question: ask for number of circuits
+            return {
+                "summary": summary,
+                "message": "How many circuits? (Please provide an even number between 18-80)",
+                "plan": plan,
+                "needs_input": "number_of_ckts"
+            }
+        
         if session_files:
             return {
                 "summary": summary,
-                "message": f"Ready to build panel schedule.{file_info} Press Build when ready.",
+                "message": f"Ready to build {number_of_ckts}-circuit panel schedule.{file_info} Press Build when ready.",
                 "plan": plan
             }
         else:
             return {
                 "summary": summary,
-                "message": "Upload panel photos, then press Build.",
+                "message": f"Building {number_of_ckts}-circuit panel schedule. Upload panel photos, then press Build.",
                 "plan": plan
             }
     

@@ -13,6 +13,7 @@ SCHEMA = {
     "project": {"type": "string"},
     "service_voltage": {"type": "string"},
     "service_amperes": {"type": "integer"},
+    "number_of_ckts": {"type": "integer", "minimum": 18, "maximum": 80, "description": "Number of circuits for panel schedule (must be even, 18-80)"},
     "panels": {"type": "array", "items": {"type": "object",
       "properties": {"name":{"type":"string"},"voltage":{"type":"string"},"bus_amperes":{"type":"integer"}},
       "required": ["name","voltage","bus_amperes"]
@@ -45,7 +46,8 @@ SYSTEM_PROMPT = (
   "2) Produce STRICT JSON that matches the provided schema (no commentary).\n"
   "3) If the task is ambiguous, make conservative assumptions and proceed.\n"
   "4) Do not include any units in numeric fields; put notes in 'notes'.\n"
-  "5) Coordinates are in drawing units (feet)."
+  "5) Coordinates are in drawing units (feet).\n"
+  "6) For panel_schedule tasks, extract 'number_of_ckts' from the user's response if they specify a number (e.g., '42 circuits', 'forty-two', '42'). The number must be even and between 18-80."
 )
 
 def summarize_intent(user_text: str) -> str:
@@ -88,7 +90,22 @@ def plan_from_prompt(user_text: str, bucket_dir: str) -> Dict[str, Any]:
         elif any(kw in text_lower for kw in ["one line", "oneline", "one-line", "service", "feeder"]):
             task = "one_line"
         
-        return {
+        # Extract number_of_ckts if present in text
+        import re
+        number_of_ckts = None
+        # Look for patterns like "42", "42 circuits", "forty-two"
+        num_match = re.search(r'\b(\d+)\s*(?:circuits?|ckts?|spaces?)?\b', text_lower)
+        if num_match:
+            try:
+                num = int(num_match.group(1))
+                # Validate and round to even number within range
+                if 18 <= num <= 80:
+                    number_of_ckts = num if num % 2 == 0 else num + 1
+                    logger.info(f"Extracted number_of_ckts={number_of_ckts} from text")
+            except ValueError:
+                pass
+        
+        plan = {
           "task": task,
           "project": "Demo Project",
           "service_voltage": "480Y/277V",
@@ -97,6 +114,9 @@ def plan_from_prompt(user_text: str, bucket_dir: str) -> Dict[str, Any]:
           "loads": [{"name":"CHWP-1","kva":50,"panel":"MDS"}],
           "notes": f"Keyword-based fallback (detected: {task}). Configure OPENAI_API_KEY for better parsing."
         }
+        if number_of_ckts:
+            plan["number_of_ckts"] = number_of_ckts
+        return plan
     try:
         from openai import OpenAI
         client = OpenAI(api_key=OPENAI_API_KEY)
