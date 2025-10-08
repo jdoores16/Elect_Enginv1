@@ -419,23 +419,30 @@ def _filter_session(files, session: str|None):
 
 # ---- Panel OCR → Excel ----
 from app.skills.ocr_panel import ocr_image_to_lines, parse_circuits_from_lines
+from app.utils.excel_template import find_template, apply_template_to_data
 import openpyxl
 
 @app.post("/panel/ocr_to_excel")
 def panel_ocr_to_excel(payload: dict):
     """
     Create a panelboard schedule Excel from photos in the bucket.
+    Automatically uses an Excel template if one is uploaded to the bucket.
+    Template files should have 'template' in the filename (e.g., 'panelboard_template.xlsx')
+    
     Payload:
       {
         "files": ["PB1_1.jpg","PB1_2.jpg"] | null to use all images in bucket for session
         "panel_name": "PB1",
-        "session": "optional-session-id"
+        "session": "optional-session-id",
+        "use_template": true | false (default: true)
       }
     Requires Tesseract OCR installed locally.
     """
     session = payload.get("session")
     pref = _session_prefix(session)
+    use_template = payload.get("use_template", True)
     BUCKET.mkdir(exist_ok=True)
+    
     # Choose files
     files = payload.get("files")
     if not files:
@@ -454,22 +461,32 @@ def panel_ocr_to_excel(payload: dict):
         all_lines.extend(lines)
 
     circuits = parse_circuits_from_lines(all_lines)
-
-    # Build Excel
-    OUT.mkdir(parents=True, exist_ok=True)
-    wb = openpyxl.Workbook()
-    ws1 = wb.active
-    ws1.title = "Raw_OCR"
-    ws1.append(["Line #", "Text"])
-    for i, ln in enumerate(all_lines, 1):
-        ws1.append([i, ln])
-
-    ws2 = wb.create_sheet("Panel_Schedule")
-    ws2.append(["Panel", "Circuit", "Description"])
     panel = payload.get("panel_name") or "PANEL"
-    for num, desc in circuits:
-        ws2.append([panel, num, desc])
 
+    # Look for template
+    template_path = None
+    if use_template:
+        template_path = find_template(BUCKET, pref)
+
+    # Build Excel with template or basic format
+    OUT.mkdir(parents=True, exist_ok=True)
     name = f"{_session_prefix(session)}panel_schedule_{uuid.uuid4().hex}.xlsx"
-    wb.save(OUT / name)
-    return {"file": name, "parsed_circuits": len(circuits), "images_used": files}
+    output_path = OUT / name
+    
+    # Use template-based generation
+    apply_template_to_data(circuits, panel, template_path, output_path)
+    
+    # Also create raw OCR sheet for debugging
+    wb = openpyxl.load_workbook(output_path)
+    ws_raw = wb.create_sheet("Raw_OCR", 0)  # Insert as first sheet
+    ws_raw.append(["Line #", "Text"])
+    for i, ln in enumerate(all_lines, 1):
+        ws_raw.append([i, ln])
+    wb.save(output_path)
+    
+    return {
+        "file": name, 
+        "parsed_circuits": len(circuits), 
+        "images_used": files,
+        "template_used": template_path.name if template_path else None
+    }
