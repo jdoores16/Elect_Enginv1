@@ -5,6 +5,7 @@ import logging
 import openpyxl
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.styles import Font, Fill, Alignment, Border
+from copy import copy
 
 logger = logging.getLogger(__name__)
 
@@ -226,11 +227,37 @@ def apply_template_to_data(
             
             logger.info(f"Filling circuit data: circuit col={circuit_col}, description col={desc_col}")
             
-            # Fill circuit data
+            # Use the first data row as template for formatting
+            template_data_row = data_start_row
+            
+            # Copy formatting from template row to all circuit rows to ensure consistent borders/spacing
+            logger.info(f"Copying formatting from template row {template_data_row} to all circuit rows")
             for idx, (circuit_num, description) in enumerate(circuits):
-                row_num = data_start_row + idx
-                ws.cell(row=row_num, column=circuit_col, value=circuit_num)
-                ws.cell(row=row_num, column=desc_col, value=description)
+                target_row = data_start_row + idx
+                
+                # Copy row formatting from template (only if target row doesn't already have it)
+                if target_row > ws.max_row or target_row != template_data_row:
+                    # Copy entire row formatting
+                    for col_num in range(1, ws.max_column + 1):
+                        template_cell = ws.cell(row=template_data_row, column=col_num)
+                        target_cell = ws.cell(row=target_row, column=col_num)
+                        
+                        # Copy cell formatting (borders, fonts, alignment, etc.)
+                        if template_cell.has_style:
+                            target_cell.font = copy(template_cell.font)
+                            target_cell.border = copy(template_cell.border)
+                            target_cell.fill = copy(template_cell.fill)
+                            target_cell.number_format = copy(template_cell.number_format)
+                            target_cell.protection = copy(template_cell.protection)
+                            target_cell.alignment = copy(template_cell.alignment)
+                    
+                    # Copy row height if defined
+                    if template_data_row in ws.row_dimensions and ws.row_dimensions[template_data_row].height:
+                        ws.row_dimensions[target_row].height = ws.row_dimensions[template_data_row].height
+                
+                # Now fill in the values
+                ws.cell(row=target_row, column=circuit_col, value=circuit_num)
+                ws.cell(row=target_row, column=desc_col, value=description)
             
             logger.info(f"Applied template with {len(circuits)} circuits")
             
