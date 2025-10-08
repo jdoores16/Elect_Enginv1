@@ -191,7 +191,10 @@ sendBtn.addEventListener('click', async () => {
   const j = await r.json();
   // The backend returns summary + plan when a task matched; otherwise message
   if (j.summary) addMsg('ai', j.summary);
-  if (j.plan) lastPlan = j.plan;
+  if (j.plan) {
+    lastPlan = j.plan;
+    renderChecklist(j.plan);
+  }
   if (j.plan && j.plan.task) lastIntent = j.plan.task;
   if (j.message) addMsg('ai', j.message);
   refreshOutputs();

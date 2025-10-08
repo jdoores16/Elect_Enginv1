@@ -115,50 +115,23 @@ def run_command(payload: dict):
     text = (payload.get("text") or "").strip()
     if not text:
         raise HTTPException(400, "No command text provided.")
-    OUT.mkdir(parents=True, exist_ok=True)
 
     summary = summarize_intent(text)
     plan = plan_from_prompt(text, str(BUCKET))
     task = (plan.get("task") or "").lower()
 
-    if task == "one_line":
-        req = OneLineRequest(**{
-            "project": plan.get("project",""),
-            "service_voltage": plan.get("service_voltage","480Y/277V"),
-            "service_amperes": plan.get("service_amperes",2000),
-            "panels": plan.get("panels",[]),
-            "loads": plan.get("loads",[])
-        })
-        name = f"{_session_prefix(payload.get('session'))}one_line_{uuid.uuid4().hex}.dxf"
-        generate_one_line_dxf(req, OUT / name)
-        return {"summary": summary, "message": "One-line DXF generated.", "file": name, "plan": plan}
+    if task in ["one_line", "power_plan", "lighting_plan", "revit_package"]:
+        return {
+            "summary": summary, 
+            "message": f"Got it! I've analyzed your request for a {task.replace('_', ' ')}. Press the Build button when you're ready to generate the outputs.",
+            "plan": plan
+        }
 
-    if task == "power_plan":
-        req = PlanRequest(**{
-            "project": plan.get("project",""),
-            "rooms": plan.get("rooms",[]),
-            "devices": plan.get("devices",[])
-        })
-        name = f"{_session_prefix(payload.get('session'))}power_plan_{uuid.uuid4().hex}.dxf"
-        generate_power_plan_dxf(req, OUT / name)
-        return {"summary": summary, "message": "Power plan DXF generated.", "file": name, "plan": plan}
-
-    if task == "lighting_plan":
-        req = PlanRequest(**{
-            "project": plan.get("project",""),
-            "rooms": plan.get("rooms",[]),
-            "devices": plan.get("devices",[])
-        })
-        name = f"{_session_prefix(payload.get('session'))}lighting_plan_{uuid.uuid4().hex}.dxf"
-        generate_lighting_plan_dxf(req, OUT / name)
-        return {"summary": summary, "message": "Lighting plan DXF generated.", "file": name, "plan": plan}
-
-    if task == "revit_package":
-        name = f"{_session_prefix(payload.get('session'))}revit_task_{uuid.uuid4().hex}.json"
-        (OUT / name).write_text(json.dumps(plan, indent=2))
-        return {"summary": summary, "message": "Revit task JSON generated.", "file": name, "plan": plan}
-
-    return {"summary": summary, "message": f"Task '{task}' not recognized. Try: one_line, power_plan, lighting_plan, revit_package.", "plan": plan}
+    return {
+        "summary": summary, 
+        "message": "I'm listening and gathering information. Let me know what you'd like to design (one-line, power plan, or lighting plan), then press Build when ready.",
+        "plan": plan
+    }
 
 
 from app.schemas.standards import StandardsConfig
