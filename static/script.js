@@ -127,13 +127,62 @@ let lastPlan = null; // store latest planner JSON
 let lastIntent = null;
 
 // Helpers
-function addMsg(role, text) {
+function addMsg(role, text, options = {}) {
   const div = document.createElement('div');
   div.className = `msg ${role}`;
-  div.textContent = text;
+  
+  if (options.needs_confirmation || options.needs_finish_confirmation) {
+    // Render confirmation message with Yes/No buttons
+    const taskName = options.task_name || 'this task';
+    const message = options.message || text;
+    
+    // Parse the message to find and highlight the task name
+    const messageContainer = document.createElement('div');
+    messageContainer.style.marginBottom = '10px';
+    
+    // Replace task name with highlighted version
+    const highlightedMessage = message.replace(
+      new RegExp(`(${taskName})`, 'gi'),
+      '<span class="task-highlight">$1</span>'
+    );
+    messageContainer.innerHTML = highlightedMessage;
+    
+    // Create button container
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.display = 'flex';
+    buttonContainer.style.gap = '10px';
+    buttonContainer.style.marginTop = '10px';
+    
+    // Yes button
+    const yesBtn = document.createElement('button');
+    yesBtn.textContent = 'Yes';
+    yesBtn.className = 'confirm-btn yes-btn';
+    yesBtn.onclick = () => {
+      textInput.value = 'yes';
+      sendBtn.click();
+    };
+    
+    // No button
+    const noBtn = document.createElement('button');
+    noBtn.textContent = 'No';
+    noBtn.className = 'confirm-btn no-btn';
+    noBtn.onclick = () => {
+      textInput.value = 'no';
+      sendBtn.click();
+    };
+    
+    buttonContainer.appendChild(yesBtn);
+    buttonContainer.appendChild(noBtn);
+    
+    div.appendChild(messageContainer);
+    div.appendChild(buttonContainer);
+  } else {
+    div.textContent = text;
+  }
+  
   thread.appendChild(div);
   thread.scrollTop = thread.scrollHeight;
-  if (role === 'ai') speak(text);
+  if (role === 'ai' && !options.needs_confirmation && !options.needs_finish_confirmation) speak(text);
 }
 function speak(text) {
   if (!('speechSynthesis' in window)) return;
@@ -230,7 +279,21 @@ sendBtn.addEventListener('click', async () => {
     renderChecklist(j.plan);
   }
   if (j.plan && j.plan.task) lastIntent = j.plan.task;
-  if (j.message) addMsg('ai', j.message);
+  
+  // Handle confirmation messages with Yes/No buttons
+  if (j.message) {
+    if (j.needs_confirmation || j.needs_finish_confirmation) {
+      addMsg('ai', j.message, {
+        needs_confirmation: j.needs_confirmation,
+        needs_finish_confirmation: j.needs_finish_confirmation,
+        task_name: j.task_name,
+        message: j.message
+      });
+    } else {
+      addMsg('ai', j.message);
+    }
+  }
+  
   refreshOutputs();
 });
 

@@ -52,21 +52,31 @@ AI response style: Short and brief by default, only providing details when promp
 
 ## Data Storage
 
-**File-Based Storage**: No database required
+**Hybrid Storage Model**: File-based + PostgreSQL for conversational state
+
+**File-Based Storage**:
 - `/bucket` directory: User-uploaded reference files (floor plans, cut sheets, photos)
 - `/out` directory: Generated outputs (DXF, PDF, CSV, DOCX, ZIP)
 - Session isolation via filename prefixing
 - Standards configuration stored in JSON (`standards/active.json`)
 
-**Design Rationale**: File-based storage is appropriate for this use case because:
-1. Projects are self-contained deliverable packages
-2. Version control works naturally with file systems
-3. No complex queries or relationships required
-4. Simplifies deployment on Replit and similar platforms
-5. Engineers are accustomed to file-based CAD workflows
+**PostgreSQL Database** (Neon-backed, optional):
+- `task_state` table: Tracks active tasks per session for multi-turn conversations
+- Enables AI to maintain context across multiple user responses
+- Example flow: User says "build panelboard schedule" → AI asks "how many circuits?" → User says "42" → AI stays on task and confirms readiness
+- Task cleared when user says "finished", "done", "cancel", or "new task"
+- **Graceful Degradation**: If DATABASE_URL is not set, the application runs without task state persistence (single-turn interactions only)
 
-**Pros**: Simple, portable, version-control friendly, no database maintenance
-**Cons**: Limited querying capability, manual cleanup required, not suitable for multi-user concurrent access
+**Design Rationale**: 
+- File-based storage remains primary for deliverable packages (self-contained, version-control friendly, CAD workflow compatible)
+- Database added specifically for conversational state management to enable multi-turn task parameter collection
+- Keeps database schema minimal (single table) to maintain simplicity while solving the task persistence problem
+
+**Task State Management**:
+- Each session can have one active task at a time
+- Parameters (like `number_of_ckts` for panel schedules) accumulate from user responses
+- AI remains focused on active task until user explicitly says "finished"
+- Prevents AI from switching tasks mid-conversation when user provides requested parameters
 
 ## Document Export Pipeline
 
@@ -119,6 +129,10 @@ AI response style: Short and brief by default, only providing details when promp
 **Configuration & Validation**:
 - `pydantic` (2.9.2): Data validation and settings management
 - `python-dotenv` (1.0.1): Environment variable loading
+
+**Database**:
+- `sqlalchemy` (2.0.x): SQL toolkit and ORM for PostgreSQL
+- `psycopg2-binary` (2.9.x): PostgreSQL database adapter
 
 **Testing**:
 - `pytest` (≥8.0.0): Testing framework

@@ -70,3 +70,5 @@ reportlab>=4.0.0
 uvicorn==0.30.6
 xlrd
 xlrd
+psycopg2-binary
+sqlalchemy

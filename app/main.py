@@ -11,6 +11,7 @@ from app.cad.one_line import generate_one_line_dxf
 from app.cad.power_plan import generate_power_plan_dxf
 from app.cad.lighting_plan import generate_lighting_plan_dxf
 from app.ai.llm import plan_from_prompt, summarize_intent
+from app.db import init_db, get_active_task, save_task_state, update_task_parameters, clear_task_state
 
 ROOT = Path(__file__).resolve().parent.parent
 BUCKET = ROOT / "bucket"
@@ -25,6 +26,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+def startup_event():
+    init_db()
 
 # Static frontend
 app.mount("/static", StaticFiles(directory=str(STATIC), html=True), name="static")
@@ -130,6 +135,9 @@ def run_command(payload: dict):
         raise HTTPException(400, "No command text provided.")
 
     session = payload.get("session")
+    if not session:
+        raise HTTPException(400, "Session ID required.")
+    
     pref = _session_prefix(session)
     
     # Check for reference files in bucket
@@ -137,53 +145,204 @@ def run_command(payload: dict):
     bucket_files = [p.name for p in BUCKET.iterdir() if p.is_file()]
     session_files = [f for f in bucket_files if not pref or f.startswith(pref)]
     
-    summary = summarize_intent(text)
-    plan = plan_from_prompt(text, str(BUCKET))
-    task = (plan.get("task") or "").lower()
-
-    # Build response message
-    file_info = ""
-    if session_files:
-        file_info = f" I see you've uploaded {len(session_files)} reference file(s): {', '.join(session_files[:3])}{'...' if len(session_files) > 3 else ''}."
-    else:
-        file_info = " Do you have any reference files (floor plans, cut sheets, photos) you'd like me to use? You can drag and drop them into the upload area."
-
-    if task == "panel_schedule":
-        # Check if number_of_ckts is specified
-        number_of_ckts = plan.get("number_of_ckts")
-        
-        if not number_of_ckts:
-            # First question: ask for number of circuits
+    # Check for Yes/No responses
+    text_lower = text.lower().strip()
+    if text_lower in ["yes", "y", "yeah", "yep", "sure", "ok", "okay"]:
+        # User confirmed something - check what we're confirming
+        active_task = get_active_task(session)
+        if active_task and active_task.get("parameters", {}).get("pending_confirmation"):
+            # User is confirming to start the task
+            params = active_task["parameters"]
+            params.pop("pending_confirmation", None)
+            update_task_parameters(session, params)
+            
+            task_type = active_task["task_type"]
+            task_name = task_type.replace("_", " ")
+            
+            # For panel_schedule, check if we need number_of_ckts
+            if task_type == "panel_schedule":
+                number_of_ckts = params.get("number_of_ckts")
+                if not number_of_ckts:
+                    return {
+                        "summary": "Got it.",
+                        "message": "How many circuits? (Please provide an even number between 18-80)",
+                        "plan": {"task": task_type, "project": params.get("project", "Project"), **params},
+                        "needs_input": "number_of_ckts"
+                    }
+                else:
+                    file_info = ""
+                    if session_files:
+                        file_info = f" I see {len(session_files)} reference file(s)."
+                    else:
+                        file_info = " Upload panel photos for better results."
+                    
+                    return {
+                        "summary": "Got it.",
+                        "message": f"Ready to build {number_of_ckts}-circuit panel schedule.{file_info} Press Build when ready. (Say 'finished' when done)",
+                        "plan": {"task": task_type, "project": params.get("project", "Project"), **params}
+                    }
+            
+            # For other tasks, ready to go
             return {
-                "summary": summary,
-                "message": "How many circuits? (Please provide an even number between 18-80)",
-                "plan": plan,
-                "needs_input": "number_of_ckts"
+                "summary": "Got it.",
+                "message": f"Starting work on {task_name}. Press Build when ready. (Say 'finished' when done)",
+                "plan": {"task": task_type, "project": params.get("project", "Project"), **params}
             }
-        
-        if session_files:
+        elif active_task and active_task.get("parameters", {}).get("pending_finish"):
+            # User confirmed finishing the task
+            clear_task_state(session)
             return {
-                "summary": summary,
-                "message": f"Ready to build {number_of_ckts}-circuit panel schedule.{file_info} Press Build when ready.",
-                "plan": plan
+                "summary": "Got it.",
+                "message": "Task finished. What would you like to do next?",
+                "plan": {"task": "none", "project": "Ready"}
+            }
+        else:
+            # Generic yes without context - treat as continue
+            pass
+    
+    if text_lower in ["no", "n", "nope", "nah", "cancel"]:
+        # User declined something - check what we're declining
+        active_task = get_active_task(session)
+        if active_task and active_task.get("parameters", {}).get("pending_confirmation"):
+            # User declined to start the task
+            clear_task_state(session)
+            return {
+                "summary": "Got it.",
+                "message": "No problem. What would you like to do instead?",
+                "plan": {"task": "none", "project": "Ready"}
+            }
+        elif active_task and active_task.get("parameters", {}).get("pending_finish"):
+            # User declined to finish the task - stay on it
+            params = active_task["parameters"]
+            params.pop("pending_finish", None)
+            update_task_parameters(session, params)
+            
+            task_type = active_task["task_type"]
+            task_name = task_type.replace("_", " ")
+            
+            return {
+                "summary": "Got it.",
+                "message": f"Continuing work on {task_name}. What else do you need?",
+                "plan": {"task": task_type, "project": params.get("project", "Project"), **params}
+            }
+    
+    # Check if user wants to finish the current task
+    finish_keywords = ["finished", "done", "complete", "stop"]
+    if any(kw in text_lower for kw in finish_keywords):
+        active_task = get_active_task(session)
+        if active_task:
+            task_type = active_task["task_type"]
+            task_name = task_type.replace("_", " ")
+            
+            # Ask for confirmation
+            params = active_task["parameters"]
+            params["pending_finish"] = True
+            update_task_parameters(session, params)
+            
+            return {
+                "summary": "Got it.",
+                "message": f"Do you want to finish the {task_name} task and start a new task?",
+                "plan": {"task": task_type, "project": params.get("project", "Project"), **params},
+                "needs_finish_confirmation": True,
+                "task_name": task_name
             }
         else:
             return {
-                "summary": summary,
-                "message": f"Building {number_of_ckts}-circuit panel schedule. Upload panel photos, then press Build.",
-                "plan": plan
+                "summary": "Got it.",
+                "message": "No active task to finish. What would you like to do?",
+                "plan": {"task": "none", "project": "Ready"}
             }
     
-    if task in ["one_line", "power_plan", "lighting_plan", "revit_package"]:
+    # Check for active task
+    active_task = get_active_task(session)
+    
+    if active_task:
+        # User is continuing an active task, extract parameters from their response
+        task_type = active_task["task_type"]
+        params = active_task["parameters"]
+        
+        # Parse the user's response to extract parameters
+        new_plan = plan_from_prompt(text, str(BUCKET))
+        
+        # Update parameters from user response
+        if new_plan.get("number_of_ckts"):
+            params["number_of_ckts"] = new_plan["number_of_ckts"]
+        
+        # Save updated parameters
+        update_task_parameters(session, params)
+        
+        # Build the plan with updated parameters
+        plan = {
+            "task": task_type,
+            "project": params.get("project", "Project"),
+            **params
+        }
+        
+        # Check if we have all required parameters for panel_schedule
+        if task_type == "panel_schedule":
+            number_of_ckts = params.get("number_of_ckts")
+            
+            if not number_of_ckts:
+                return {
+                    "summary": "Got it.",
+                    "message": "How many circuits? (Please provide an even number between 18-80)",
+                    "plan": plan,
+                    "needs_input": "number_of_ckts"
+                }
+            
+            # All parameters collected!
+            file_info = ""
+            if session_files:
+                file_info = f" I see {len(session_files)} reference file(s)."
+            else:
+                file_info = " Upload panel photos for better results."
+            
+            return {
+                "summary": "Got it.",
+                "message": f"Ready to build {number_of_ckts}-circuit panel schedule.{file_info} Press Build when ready. (Say 'finished' to start a new task)",
+                "plan": plan
+            }
+        
+        # For other tasks, return ready message
         return {
-            "summary": summary, 
-            "message": f"Ready for {task.replace('_', ' ')}.{file_info} Press Build when ready.",
+            "summary": "Got it.",
+            "message": f"Ready for {task_type.replace('_', ' ')}. Press Build when ready. (Say 'finished' to start a new task)",
             "plan": plan
         }
+    
+    # No active task, parse as new command
+    summary = summarize_intent(text)
+    plan = plan_from_prompt(text, str(BUCKET))
+    task = (plan.get("task") or "").lower()
+    
+    # Check if this is a recognized task that needs confirmation
+    if task in ["panel_schedule", "one_line", "power_plan", "lighting_plan", "revit_package"]:
+        task_name = task.replace("_", " ")
+        
+        # Initialize task state with pending_confirmation flag
+        params = {
+            "project": plan.get("project", "Project"),
+            "pending_confirmation": True
+        }
+        
+        # Save any task-specific parameters from the initial command
+        if task == "panel_schedule" and plan.get("number_of_ckts"):
+            params["number_of_ckts"] = plan.get("number_of_ckts")
+        
+        save_task_state(session, task, params)
+        
+        return {
+            "summary": summary,
+            "message": f"Should I work on a {task_name}?",
+            "plan": plan,
+            "needs_confirmation": True,
+            "task_name": task_name
+        }
 
+    # Unrecognized task or general query
     return {
         "summary": summary, 
-        "message": f"Listening.{file_info} Press Build when ready.",
+        "message": "I'm listening. What would you like to do?",
         "plan": plan
     }
 
