@@ -13,8 +13,8 @@ body { margin: 0; font-family: system-ui, Segoe UI, Roboto, sans-serif; backgrou
   margin: 0; 
   display: grid; 
   gap: 8px; 
-  max-height: 200px;
-  min-height: 80px;
+  height: 150px;
+  min-height: 60px;
   overflow-y: auto;
   resize: vertical;
   border: 1px solid #374151;
@@ -40,8 +40,8 @@ body { margin: 0; font-family: system-ui, Segoe UI, Roboto, sans-serif; backgrou
   margin: 0; 
   display: grid; 
   gap: 8px; 
-  max-height: 250px;
-  min-height: 100px;
+  height: 180px;
+  min-height: 80px;
   overflow-y: auto;
   resize: vertical;
   border: 1px solid #374151;
