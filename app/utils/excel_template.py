@@ -11,35 +11,44 @@ logger = logging.getLogger(__name__)
 
 def find_template(bucket_dir: Path, session_prefix: str = "") -> Optional[Path]:
     """
-    Find an Excel template file in the bucket directory.
+    Find an Excel template file in the bucket directory or templates folder.
     Looks for files with 'template' in the name or ending in '_template.xlsx'
     Only returns .xlsx or .xlsm files that openpyxl can read.
+    Falls back to default template in templates/ folder if no user template found.
     """
-    if not bucket_dir.exists():
-        return None
-    
     candidates = []
-    for p in bucket_dir.iterdir():
-        if not p.is_file():
-            continue
-        # Only accept formats that openpyxl can load
-        if p.suffix.lower() not in ['.xlsx', '.xlsm']:
-            continue
-        # Check if it matches session
-        if session_prefix and not p.name.startswith(session_prefix):
-            continue
-        # Check if it looks like a template
-        name_lower = p.name.lower()
-        if 'template' in name_lower or '_tmpl' in name_lower:
-            candidates.append(p)
+    
+    # First, check bucket directory for user-uploaded templates
+    if bucket_dir.exists():
+        for p in bucket_dir.iterdir():
+            if not p.is_file():
+                continue
+            # Only accept formats that openpyxl can load
+            if p.suffix.lower() not in ['.xlsx', '.xlsm']:
+                continue
+            # Check if it matches session
+            if session_prefix and not p.name.startswith(session_prefix):
+                continue
+            # Check if it looks like a template
+            name_lower = p.name.lower()
+            if 'template' in name_lower or '_tmpl' in name_lower:
+                candidates.append(p)
     
     if candidates:
-        # Return the most recent template
+        # Return the most recent user template
         candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-        logger.info(f"Found template: {candidates[0].name}")
+        logger.info(f"Found user template: {candidates[0].name}")
         return candidates[0]
     
-    logger.info("No template file found in bucket")
+    # Fallback to default template in templates folder
+    templates_dir = Path(__file__).parent.parent.parent / "templates"
+    default_template = templates_dir / "default_panelboard_template.xlsx"
+    
+    if default_template.exists():
+        logger.info(f"Using default template: {default_template.name}")
+        return default_template
+    
+    logger.info("No template file found in bucket or templates folder")
     return None
 
 
