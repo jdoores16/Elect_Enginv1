@@ -65,7 +65,8 @@ AI response style: Short and brief by default, only providing details when promp
 - Enables AI to maintain context across multiple user responses
 - Example flow: User says "build panelboard schedule" → AI asks "how many circuits?" → User says "42" → AI stays on task and confirms readiness
 - Task cleared when user says "finished", "done", "cancel", or "new task"
-- **Graceful Degradation**: If DATABASE_URL is not set, the application runs without task state persistence (single-turn interactions only)
+- **Graceful Degradation**: If DATABASE_URL is not set, task state uses an in-memory dictionary fallback (persists only within server lifetime, lost on restart)
+- **In-Memory Fallback**: All confirmation and state management features work identically with or without PostgreSQL
 
 **Design Rationale**: 
 - File-based storage remains primary for deliverable packages (self-contained, version-control friendly, CAD workflow compatible)
