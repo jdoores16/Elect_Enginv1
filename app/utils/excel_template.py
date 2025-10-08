@@ -270,6 +270,15 @@ def apply_template_to_data(
                 ws.cell(row=sum_row, column=col, value=formula)
             
             logger.info(f"Added SUM formulas to row {sum_row} for columns B, C, D, L, M, N")
+            
+            # Add total formulas to row 44 for columns G, H, I
+            # G44 = SUM(B42+L42), H44 = SUM(C42+M42), I44 = SUM(D42+N42)
+            total_row = 44
+            ws.cell(row=total_row, column=7, value="=SUM(B42+L42)")  # G44
+            ws.cell(row=total_row, column=8, value="=SUM(C42+M42)")  # H44
+            ws.cell(row=total_row, column=9, value="=SUM(D42+N42)")  # I44
+            
+            logger.info(f"Added total formulas to row {total_row} for columns G, H, I")
             logger.info(f"Applied template with {len(circuits)} circuits")
             
         except Exception as e:
