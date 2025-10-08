@@ -197,6 +197,14 @@ sendBtn.addEventListener('click', async () => {
   refreshOutputs();
 });
 
+// Enter key to send
+textInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    sendBtn.click();
+  }
+});
+
 async function refreshOutputs() {
   const r = await fetch('/outputs/list?session=' + encodeURIComponent(sessionId));
   const j = await r.json();
