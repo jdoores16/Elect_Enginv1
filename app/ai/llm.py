@@ -9,7 +9,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 SCHEMA = {
   "type": "object",
   "properties": {
-    "task": {"type": "string", "enum": ["one_line","power_plan","lighting_plan","revit_package"]},
+    "task": {"type": "string", "enum": ["one_line","power_plan","lighting_plan","revit_package","panel_schedule"]},
     "project": {"type": "string"},
     "service_voltage": {"type": "string"},
     "service_amperes": {"type": "integer"},
@@ -71,15 +71,31 @@ def summarize_intent(user_text: str) -> str:
 def plan_from_prompt(user_text: str, bucket_dir: str) -> Dict[str, Any]:
     files = _list_bucket(bucket_dir)
     if not OPENAI_API_KEY:
-        logger.warning("OpenAI API key not configured. Using hardcoded fallback plan. Configure OPENAI_API_KEY for AI-powered planning.")
+        logger.warning("OpenAI API key not configured. Using keyword-based fallback. Configure OPENAI_API_KEY for AI-powered planning.")
+        
+        # Keyword detection for task type
+        text_lower = user_text.lower()
+        task = "one_line"  # default
+        
+        if any(kw in text_lower for kw in ["panel schedule", "panelboard schedule", "panelboard", "panel board", "schedule", "circuit schedule"]):
+            task = "panel_schedule"
+        elif any(kw in text_lower for kw in ["power plan", "receptacle", "outlet", "power layout"]):
+            task = "power_plan"
+        elif any(kw in text_lower for kw in ["lighting plan", "light", "fixture", "illumination"]):
+            task = "lighting_plan"
+        elif any(kw in text_lower for kw in ["revit", "dynamo", "bim"]):
+            task = "revit_package"
+        elif any(kw in text_lower for kw in ["one line", "oneline", "one-line", "service", "feeder"]):
+            task = "one_line"
+        
         return {
-          "task": "one_line",
+          "task": task,
           "project": "Demo Project",
           "service_voltage": "480Y/277V",
           "service_amperes": 2000,
           "panels": [{"name":"MDS","voltage":"480Y/277V","bus_amperes":1200}],
           "loads": [{"name":"CHWP-1","kva":50,"panel":"MDS"}],
-          "notes": "Fallback plan used due to missing OPENAI_API_KEY."
+          "notes": f"Keyword-based fallback (detected: {task}). Configure OPENAI_API_KEY for better parsing."
         }
     try:
         from openai import OpenAI

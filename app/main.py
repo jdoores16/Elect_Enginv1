@@ -135,6 +135,20 @@ def run_command(payload: dict):
     else:
         file_info = " Do you have any reference files (floor plans, cut sheets, photos) you'd like me to use? You can drag and drop them into the upload area."
 
+    if task == "panel_schedule":
+        if session_files:
+            return {
+                "summary": summary,
+                "message": f"Got it! I'll create a panelboard schedule from your uploaded files.{file_info} Press the Build button to generate the Excel schedule.",
+                "plan": plan
+            }
+        else:
+            return {
+                "summary": summary,
+                "message": "I'll help you create a panelboard schedule. Please upload photos of the panelboard or an existing Excel template, then press Build to generate the schedule.",
+                "plan": plan
+            }
+    
     if task in ["one_line", "power_plan", "lighting_plan", "revit_package"]:
         return {
             "summary": summary, 
