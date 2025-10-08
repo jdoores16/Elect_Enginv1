@@ -103,55 +103,134 @@ def apply_template_to_data(
     circuits: List[Tuple[str, str]], 
     panel_name: str,
     template_path: Optional[Path],
-    output_path: Path
+    output_path: Path,
+    panel_specs: Optional[Dict] = None
 ) -> Path:
     """
     Create an Excel file using template formatting, filled with OCR circuit data.
+    If template is provided, copies entire template and updates:
+    - Row 1, Column 1 (A1): Panel identifier/name
+    - Rows 2-9, Column B: Panel specifications (voltage, phase, etc.) based on labels in Column A
+    - Circuit data starting from data table row
     If no template is provided or template fails to load, creates a basic formatted schedule.
     """
     if template_path and template_path.exists():
         try:
             logger.info(f"Using template: {template_path.name}")
-            structure = read_template_structure(template_path)
-            wb = openpyxl.Workbook()
+            
+            # Load the entire template workbook
+            wb = openpyxl.load_workbook(template_path)
             ws = wb.active
-            ws.title = structure.get('sheet_name', 'Panel_Schedule')
             
-            # Apply headers with formatting
-            headers = structure.get('headers', ['Panel', 'Circuit', 'Description'])
-            header_styles = structure.get('header_styles', [])
+            # Update Row 1, Column 1 (A1) with panel name - this is the panel identifier
+            # A2-A9 are field labels (not editable), B2-B9 are field values (editable)
+            ws.cell(row=1, column=1, value=panel_name)
+            logger.info(f"Updated panel identifier (A1) to: {panel_name}")
             
-            for col_idx, header in enumerate(headers, 1):
-                cell = ws.cell(row=1, column=col_idx, value=header)
-                # Apply header formatting if available
-                if col_idx - 1 < len(header_styles):
-                    style = header_styles[col_idx - 1]
-                    if style.get('font'):
-                        cell.font = style['font']
-                    if style.get('fill'):
-                        cell.fill = style['fill']
-                    if style.get('alignment'):
-                        cell.alignment = style['alignment']
-                    if style.get('border'):
-                        cell.border = style['border']
+            # Update panel specifications based on template labels
+            # A2-A9 labels -> B2-B9 values
+            # N2-N9 labels -> O2-O9 values
+            # If panel_specs is None, skip this section entirely
+            if panel_specs is not None:
+                # Mapping of common label keywords to spec keys
+                label_mapping = {
+                    'voltage': ['voltage', 'volt'],
+                    'phase': ['phase', 'ph'],
+                    'wire': ['wire', 'wires'],
+                    'main_bus_amps': ['main bus amps', 'bus amps', 'main amps', 'bus rating'],
+                    'main_breaker': ['main circuit breaker', 'main breaker', 'mcb'],
+                    'mounting': ['mounting', 'mount'],
+                    'feed': ['feed from', 'fed from', 'feed'],
+                    'location': ['location', 'loc'],
+                }
+                
+                # Check both sets of label/value columns: (A,B) and (N,O)
+                label_value_columns = [(1, 2), (14, 15)]  # (A,B) and (N,O)
+                
+                for label_col, value_col in label_value_columns:
+                    # Read labels from rows 2-9 and populate values
+                    for row_num in range(2, 10):
+                        label_cell = ws.cell(row=row_num, column=label_col)
+                        if label_cell.value:
+                            label = str(label_cell.value).lower().strip().rstrip(':')
+                            
+                            # Find matching spec key
+                            matched_value = None
+                            for spec_key, keywords in label_mapping.items():
+                                if any(keyword in label for keyword in keywords):
+                                    # Check if we have the spec value, otherwise mark as MISSING
+                                    matched_value = panel_specs.get(spec_key, "MISSING")
+                                    break
+                            
+                            # If no keyword matched, default to MISSING for any labeled field
+                            if matched_value is None:
+                                matched_value = "MISSING"
+                                logger.info(f"No keyword match for label '{label}' - marking as MISSING")
+                            
+                            # Update value cell with matched value or MISSING
+                            col_letter = openpyxl.utils.get_column_letter(value_col)
+                            ws.cell(row=row_num, column=value_col, value=matched_value)
+                            logger.info(f"Updated {label} ({col_letter}{row_num}) to: {matched_value}")
             
-            # Apply column widths
-            for col_idx, width in structure.get('column_widths', {}).items():
-                col_letter = openpyxl.utils.get_column_letter(col_idx)
-                ws.column_dimensions[col_letter].width = width
+            # Find the data table header block (may span multiple rows)
+            # Look for keywords like "LOAD DESCRIPTION", "CKT", etc.
+            first_header_row = None
+            last_header_row = None
             
-            # Fill in circuit data
-            # Map circuit data to template columns
-            for row_idx, (circuit_num, description) in enumerate(circuits, 2):
-                # Try to intelligently map to template columns
-                for col_idx, header in enumerate(headers, 1):
-                    header_lower = header.lower()
-                    if 'panel' in header_lower or 'board' in header_lower:
-                        ws.cell(row=row_idx, column=col_idx, value=panel_name)
-                    elif 'circuit' in header_lower or 'ckt' in header_lower or 'number' in header_lower:
-                        ws.cell(row=row_idx, column=col_idx, value=circuit_num)
-                    elif 'desc' in header_lower or 'load' in header_lower or 'name' in header_lower:
-                        ws.cell(row=row_idx, column=col_idx, value=description)
+            for row_num in range(1, min(20, ws.max_row + 1)):
+                has_header_keyword = False
+                for col_num in range(1, min(16, ws.max_column + 1)):
+                    cell_value = ws.cell(row=row_num, column=col_num).value
+                    if cell_value and isinstance(cell_value, str):
+                        cell_lower = cell_value.lower()
+                        if any(keyword in cell_lower for keyword in ['load description', 'ckt', 'breaker', 'phase', 'amp', 'pole']):
+                            has_header_keyword = True
+                            if first_header_row is None:
+                                first_header_row = row_num
+                            last_header_row = row_num
+                            break
+                
+                # If we found headers and now hit a row without header keywords, stop
+                if first_header_row and not has_header_keyword:
+                    break
+            
+            # Data starts after the last header row
+            if last_header_row:
+                data_start_row = last_header_row + 1
+                logger.info(f"Found header block from row {first_header_row} to {last_header_row}, data starts at row {data_start_row}")
+            else:
+                data_start_row = 12
+                logger.warning(f"Could not find data table header, using default row {data_start_row}")
+            
+            # Fill in circuit data starting from data_start_row
+            # Find which columns contain circuit number and description
+            circuit_col = None
+            desc_col = None
+            
+            # Check header row for circuit and description columns
+            header_row = data_start_row - 1
+            for col_num in range(1, min(16, ws.max_column + 1)):
+                cell_value = ws.cell(row=header_row, column=col_num).value
+                if cell_value and isinstance(cell_value, str):
+                    cell_lower = cell_value.lower()
+                    if 'ckt' in cell_lower or ('circuit' in cell_lower and 'breaker' not in cell_lower):
+                        circuit_col = col_num
+                    elif 'load' in cell_lower or 'desc' in cell_lower:
+                        desc_col = col_num
+            
+            # Default columns if not found: circuit in col 7, description in col 1
+            if not circuit_col:
+                circuit_col = 7
+            if not desc_col:
+                desc_col = 1
+            
+            logger.info(f"Filling circuit data: circuit col={circuit_col}, description col={desc_col}")
+            
+            # Fill circuit data
+            for idx, (circuit_num, description) in enumerate(circuits):
+                row_num = data_start_row + idx
+                ws.cell(row=row_num, column=circuit_col, value=circuit_num)
+                ws.cell(row=row_num, column=desc_col, value=description)
             
             logger.info(f"Applied template with {len(circuits)} circuits")
             

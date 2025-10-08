@@ -43,6 +43,7 @@ def health():
 async def upload(files: List[UploadFile] = File(...), session: str | None = None):
     BUCKET.mkdir(parents=True, exist_ok=True)
     saved = []
+    template_detected = False
     pref = _session_prefix(session)
     for f in files:
         filename = pref + f.filename
@@ -50,7 +51,17 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
         with dest.open("wb") as out:
             shutil.copyfileobj(f.file, out)
         saved.append(filename)
-    return {"saved": saved}
+        
+        # Detect if this is a template file
+        if 'template' in f.filename.lower() and f.filename.lower().endswith(('.xlsx', '.xlsm')):
+            template_detected = True
+    
+    response = {"saved": saved}
+    if template_detected:
+        response["template_detected"] = True
+        response["message"] = "A template file has been uploaded. This template will be used for panel schedules in this session. The default template remains unchanged for future sessions."
+    
+    return response
 
 @app.get("/bucket/list")
 def bucket_list(session: str | None = None):
@@ -92,21 +103,21 @@ def out_file(name: str):
 @app.post("/cad/one_line")
 def cad_one_line(req: OneLineRequest):
     OUT.mkdir(parents=True, exist_ok=True)
-    out_path = OUT / f"one_line_{uuid.uuid4().hex}.dxf"
+    out_path = OUT / _short_filename('one_line', 'dxf')
     generate_one_line_dxf(req, out_path)
     return {"file": out_path.name}
 
 @app.post("/cad/power_plan")
 def cad_power_plan(req: PlanRequest):
     OUT.mkdir(parents=True, exist_ok=True)
-    out_path = OUT / f"power_plan_{uuid.uuid4().hex}.dxf"
+    out_path = OUT / _short_filename('power_plan', 'dxf')
     generate_power_plan_dxf(req, out_path)
     return {"file": out_path.name}
 
 @app.post("/cad/lighting_plan")
 def cad_lighting_plan(req: PlanRequest):
     OUT.mkdir(parents=True, exist_ok=True)
-    out_path = OUT / f"lighting_plan_{uuid.uuid4().hex}.dxf"
+    out_path = OUT / _short_filename('lighting_plan', 'dxf')
     generate_lighting_plan_dxf(req, out_path)
     return {"file": out_path.name}
 
@@ -236,7 +247,7 @@ def cad_panel_schedule_csv(req: OneLineRequest = Body(...)):
         for ld in loads:
             writer.writerow([pnl, ld.name, ld.kva])
     content = csv_buf.getvalue().encode("utf-8")
-    out_path = OUT / f"{_session_prefix(None)}panel_schedule_{uuid.uuid4().hex}.csv"
+    out_path = OUT / _short_filename('panel_schedule', 'csv')
     with open(out_path, "wb") as f:
         f.write(content)
     return {"file": out_path.name}
@@ -302,7 +313,7 @@ def _write_summary_docx(plan: dict, out_dir: Path) -> Path:
                       "250 (Grounding and Bonding), 300 (Wiring Methods), 310 (Conductors), 408 (Switchboards, Switchgear, Panelboards), "
                       "450 (Transformers), 700/701/702 (Emergency/Legally Required/Optional Standby), 760 (Fire Alarm), 800+ (Communications) as applicable.")
 
-    out_path = out_dir / f"summary_{uuid.uuid4().hex}.docx"
+    out_path = out_dir / _short_filename('summary', 'docx')
     doc.save(str(out_path))
     return out_path
 
@@ -336,7 +347,7 @@ def export_build_zip(payload: dict):
             "panels": plan.get("panels",[]),
             "loads": plan.get("loads",[])
         })
-        dxf_name = f"{_session_prefix(payload.get('session'))}one_line_{uuid.uuid4().hex}.dxf"
+        dxf_name = _short_filename('one_line', 'dxf')
         dxf_path = OUT / dxf_name
         generate_one_line_dxf(req, dxf_path)
         generated.append(dxf_name)
@@ -352,7 +363,7 @@ def export_build_zip(payload: dict):
             "rooms": plan.get("rooms",[]),
             "devices": plan.get("devices",[])
         })
-        dxf_name = f"{_session_prefix(payload.get('session'))}power_plan_{uuid.uuid4().hex}.dxf"
+        dxf_name = _short_filename('power_plan', 'dxf')
         dxf_path = OUT / dxf_name
         generate_power_plan_dxf(req, dxf_path)
         generated.append(dxf_name)
@@ -368,7 +379,7 @@ def export_build_zip(payload: dict):
             "rooms": plan.get("rooms",[]),
             "devices": plan.get("devices",[])
         })
-        dxf_name = f"{_session_prefix(payload.get('session'))}lighting_plan_{uuid.uuid4().hex}.dxf"
+        dxf_name = _short_filename('lighting_plan', 'dxf')
         dxf_path = OUT / dxf_name
         generate_lighting_plan_dxf(req, dxf_path)
         generated.append(dxf_name)
@@ -396,14 +407,15 @@ def export_build_zip(payload: dict):
                 all_lines.extend(lines)
             
             circuits = parse_circuits_from_lines(all_lines)
+            panel_specs = extract_panel_specs(all_lines)
             panel_name = plan.get("project", "PANEL")
             
             # Look for template
             template = find_template(BUCKET, pref)
             
             # Generate Excel
-            xlsx_name = f"{pref}panel_schedule_{uuid.uuid4().hex}.xlsx"
-            apply_template_to_data(circuits, panel_name, template, OUT / xlsx_name)
+            xlsx_name = _short_filename('panel_schedule', 'xlsx')
+            apply_template_to_data(circuits, panel_name, template, OUT / xlsx_name, panel_specs)
             generated.append(xlsx_name)
 
     # Optional CSV panel schedule if present in plan
@@ -416,7 +428,7 @@ def export_build_zip(payload: dict):
         for pnl, loads in by_panel.items():
             for ld in loads:
                 writer.writerow([pnl, ld.get("name",""), ld.get("kva","")])
-        csv_name = f"{_session_prefix(payload.get('session'))}panel_schedule_{uuid.uuid4().hex}.csv"
+        csv_name = _short_filename('panel_schedule', 'csv')
         (OUT / csv_name).write_text(csv_buf.getvalue(), encoding="utf-8")
         generated.append(csv_name)
 
@@ -425,7 +437,7 @@ def export_build_zip(payload: dict):
     generated.append(summary_path.name)
 
     # Zip it all
-    zip_name = f"{_session_prefix(payload.get('session'))}build_{uuid.uuid4().hex}.zip"
+    zip_name = _short_filename('build', 'zip')
     zip_path = OUT / zip_name
     with _zipfile.ZipFile(zip_path, "w", _zipfile.ZIP_DEFLATED) as z:
         for name in generated:
@@ -448,9 +460,32 @@ def _filter_session(files, session: str|None):
         return files
     return [f for f in files if f.startswith(pref)]
 
+def _short_filename(file_type: str, extension: str) -> str:
+    """
+    Generate short filename (max 16 characters including extension).
+    Format: {type}_{id}.{ext}
+    Example: ps_a1b2c3.xlsx (13 chars)
+    """
+    # Type abbreviations
+    type_map = {
+        'one_line': 'ol',
+        'power_plan': 'pp',
+        'lighting_plan': 'lp',
+        'panel_schedule': 'ps',
+        'build': 'bld',
+        'summary': 'sum'
+    }
+    
+    prefix = type_map.get(file_type, file_type[:2])
+    # Use 6 hex chars from UUID for uniqueness
+    short_id = uuid.uuid4().hex[:6]
+    
+    filename = f"{prefix}_{short_id}.{extension}"
+    return filename
+
 
 # ---- Panel OCR → Excel ----
-from app.skills.ocr_panel import ocr_image_to_lines, parse_circuits_from_lines
+from app.skills.ocr_panel import ocr_image_to_lines, parse_circuits_from_lines, extract_panel_specs
 from app.utils.excel_template import find_template, apply_template_to_data
 import openpyxl
 
@@ -493,6 +528,7 @@ def panel_ocr_to_excel(payload: dict):
         all_lines.extend(lines)
 
     circuits = parse_circuits_from_lines(all_lines)
+    panel_specs = extract_panel_specs(all_lines)
     panel = payload.get("panel_name") or "PANEL"
 
     # Look for template
@@ -502,11 +538,11 @@ def panel_ocr_to_excel(payload: dict):
 
     # Build Excel with template or basic format
     OUT.mkdir(parents=True, exist_ok=True)
-    name = f"{_session_prefix(session)}panel_schedule_{uuid.uuid4().hex}.xlsx"
+    name = _short_filename('panel_schedule', 'xlsx')
     output_path = OUT / name
     
     # Use template-based generation
-    apply_template_to_data(circuits, panel, template_path, output_path)
+    apply_template_to_data(circuits, panel, template_path, output_path, panel_specs)
     
     # Also create raw OCR sheet for debugging
     wb = openpyxl.load_workbook(output_path)
