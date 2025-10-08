@@ -274,7 +274,7 @@ from docx import Document
 from datetime import datetime
 import zipfile as _zipfile
 
-def _write_summary_docx(plan: dict, out_dir: Path) -> Path:
+def _write_summary_docx(plan: dict, out_dir: Path, session: str | None = None) -> Path:
     doc = Document()
     doc.add_heading('AI Design Engineer - Summary', level=1)
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -313,7 +313,7 @@ def _write_summary_docx(plan: dict, out_dir: Path) -> Path:
                       "250 (Grounding and Bonding), 300 (Wiring Methods), 310 (Conductors), 408 (Switchboards, Switchgear, Panelboards), "
                       "450 (Transformers), 700/701/702 (Emergency/Legally Required/Optional Standby), 760 (Fire Alarm), 800+ (Communications) as applicable.")
 
-    out_path = out_dir / _short_filename('summary', 'docx')
+    out_path = out_dir / _short_filename('summary', 'docx', session)
     doc.save(str(out_path))
     return out_path
 
@@ -329,11 +329,13 @@ def export_build_zip(payload: dict):
         "intent": "one_line" | "power_plan" | "lighting_plan",
         "plan": {...},                   # structured JSON produced by plan_from_prompt (or customized)
         "outputs": ["dxf","pdf","csv"]   # desired formats
+        "session": "optional-session-id"
       }
     """
     plan = payload.get("plan") or {}
     intent = (payload.get("intent") or "").lower()
     outputs = payload.get("outputs") or ["dxf","pdf"]
+    session = payload.get("session")
 
     OUT.mkdir(parents=True, exist_ok=True)
 
@@ -347,7 +349,7 @@ def export_build_zip(payload: dict):
             "panels": plan.get("panels",[]),
             "loads": plan.get("loads",[])
         })
-        dxf_name = _short_filename('one_line', 'dxf')
+        dxf_name = _short_filename('one_line', 'dxf', session)
         dxf_path = OUT / dxf_name
         generate_one_line_dxf(req, dxf_path)
         generated.append(dxf_name)
@@ -363,7 +365,7 @@ def export_build_zip(payload: dict):
             "rooms": plan.get("rooms",[]),
             "devices": plan.get("devices",[])
         })
-        dxf_name = _short_filename('power_plan', 'dxf')
+        dxf_name = _short_filename('power_plan', 'dxf', session)
         dxf_path = OUT / dxf_name
         generate_power_plan_dxf(req, dxf_path)
         generated.append(dxf_name)
@@ -379,7 +381,7 @@ def export_build_zip(payload: dict):
             "rooms": plan.get("rooms",[]),
             "devices": plan.get("devices",[])
         })
-        dxf_name = _short_filename('lighting_plan', 'dxf')
+        dxf_name = _short_filename('lighting_plan', 'dxf', session)
         dxf_path = OUT / dxf_name
         generate_lighting_plan_dxf(req, dxf_path)
         generated.append(dxf_name)
@@ -391,7 +393,6 @@ def export_build_zip(payload: dict):
     
     elif intent == "panel_schedule":
         # Use the /panel/ocr_to_excel endpoint logic
-        session = payload.get("session")
         pref = _session_prefix(session)
         BUCKET.mkdir(exist_ok=True)
         
@@ -414,7 +415,7 @@ def export_build_zip(payload: dict):
             template = find_template(BUCKET, pref)
             
             # Generate Excel
-            xlsx_name = _short_filename('panel_schedule', 'xlsx')
+            xlsx_name = _short_filename('panel_schedule', 'xlsx', session)
             apply_template_to_data(circuits, panel_name, template, OUT / xlsx_name, panel_specs)
             generated.append(xlsx_name)
 
@@ -428,16 +429,16 @@ def export_build_zip(payload: dict):
         for pnl, loads in by_panel.items():
             for ld in loads:
                 writer.writerow([pnl, ld.get("name",""), ld.get("kva","")])
-        csv_name = _short_filename('panel_schedule', 'csv')
+        csv_name = _short_filename('panel_schedule', 'csv', session)
         (OUT / csv_name).write_text(csv_buf.getvalue(), encoding="utf-8")
         generated.append(csv_name)
 
     # Create summary DOCX
-    summary_path = _write_summary_docx(plan, OUT)
+    summary_path = _write_summary_docx(plan, OUT, session)
     generated.append(summary_path.name)
 
     # Zip it all
-    zip_name = _short_filename('build', 'zip')
+    zip_name = _short_filename('build', 'zip', session)
     zip_path = OUT / zip_name
     with _zipfile.ZipFile(zip_path, "w", _zipfile.ZIP_DEFLATED) as z:
         for name in generated:
@@ -460,11 +461,11 @@ def _filter_session(files, session: str|None):
         return files
     return [f for f in files if f.startswith(pref)]
 
-def _short_filename(file_type: str, extension: str) -> str:
+def _short_filename(file_type: str, extension: str, session: str | None = None) -> str:
     """
-    Generate short filename (max 16 characters including extension).
-    Format: {type}_{id}.{ext}
-    Example: ps_a1b2c3.xlsx (13 chars)
+    Generate short filename with optional session prefix.
+    Format: {session}___{type}_{id}.{ext}
+    Example: 3980c5ea__ps_a1b2c3.xlsx
     """
     # Type abbreviations
     type_map = {
@@ -480,7 +481,9 @@ def _short_filename(file_type: str, extension: str) -> str:
     # Use 6 hex chars from UUID for uniqueness
     short_id = uuid.uuid4().hex[:6]
     
-    filename = f"{prefix}_{short_id}.{extension}"
+    # Build filename with session prefix if provided
+    session_part = _session_prefix(session)
+    filename = f"{session_part}{prefix}_{short_id}.{extension}"
     return filename
 
 
@@ -538,7 +541,7 @@ def panel_ocr_to_excel(payload: dict):
 
     # Build Excel with template or basic format
     OUT.mkdir(parents=True, exist_ok=True)
-    name = _short_filename('panel_schedule', 'xlsx')
+    name = _short_filename('panel_schedule', 'xlsx', session)
     output_path = OUT / name
     
     # Use template-based generation
