@@ -206,53 +206,53 @@ def apply_template_to_data(
                 logger.warning(f"Could not find data table header, using default row {data_start_row}")
             
             # Fill in circuit data starting from data_start_row
-            # Find which columns contain circuit data
-            circuit_col = None
-            desc_col = None
-            breaker_amps_col = None
-            breaker_poles_col = None
+            # Template uses odd/even circuit layout:
+            # Odd circuits (A12-G32): A=Description, B=Load, E=Pole, F=Amps, G=Circuit#
+            # Even circuits (I12-O32): I=Circuit#, J=Amps, K=Pole, L=Load, O=Description
             
-            # Check header row for data columns
-            header_row = data_start_row - 1
-            for col_num in range(1, min(16, ws.max_column + 1)):
-                cell_value = ws.cell(row=header_row, column=col_num).value
-                if cell_value and isinstance(cell_value, str):
-                    cell_lower = cell_value.lower()
-                    if 'ckt' in cell_lower or ('circuit' in cell_lower and 'breaker' not in cell_lower):
-                        circuit_col = col_num
-                    elif 'load' in cell_lower or 'desc' in cell_lower:
-                        desc_col = col_num
-                    elif 'breaker' in cell_lower and ('amp' in cell_lower or 'size' in cell_lower):
-                        breaker_amps_col = col_num
-                    elif 'pole' in cell_lower or ('breaker' in cell_lower and 'pole' in cell_lower):
-                        breaker_poles_col = col_num
+            odd_desc_col = 1      # A - Load Description
+            odd_load_col = 2      # B - Load (PH. A)
+            odd_poles_col = 5     # E - Pole
+            odd_amps_col = 6      # F - Amps
+            odd_circuit_col = 7   # G - Circuit Number
             
-            # Default columns if not found
-            if not circuit_col:
-                circuit_col = 7
-            if not desc_col:
-                desc_col = 1
-            # Breaker columns will be left as None if not found, which is OK
+            even_circuit_col = 9  # I - Circuit Number
+            even_amps_col = 10    # J - Amps
+            even_poles_col = 11   # K - Pole
+            even_load_col = 12    # L - Load (PH. A)
+            even_desc_col = 15    # O - Load Description
             
-            logger.info(f"Filling circuit data: circuit col={circuit_col}, description col={desc_col}, "
-                       f"breaker amps col={breaker_amps_col}, breaker poles col={breaker_poles_col}")
+            logger.info(f"Using odd/even circuit layout with all parameters (description, load, pole, amps)")
             
             # Use the first data row as template for formatting
             template_data_row = data_start_row
             
-            # Copy formatting from template row to all circuit rows to ensure consistent borders/spacing
-            logger.info(f"Copying formatting from template row {template_data_row} to all circuit rows")
-            for idx, circuit in enumerate(circuits):
+            # Separate circuits into odd and even
+            odd_circuits = []
+            even_circuits = []
+            
+            for circuit in circuits:
+                try:
+                    circuit_num = int(circuit['number'])
+                    if circuit_num % 2 == 1:  # Odd
+                        odd_circuits.append(circuit)
+                    else:  # Even
+                        even_circuits.append(circuit)
+                except (ValueError, KeyError):
+                    # If we can't parse the circuit number, skip it
+                    logger.warning(f"Skipping circuit with invalid number: {circuit.get('number', 'unknown')}")
+            
+            logger.info(f"Filling {len(odd_circuits)} odd circuits and {len(even_circuits)} even circuits")
+            
+            # Fill odd circuits (column G, starting at row 12)
+            for idx, circuit in enumerate(odd_circuits):
                 target_row = data_start_row + idx
                 
-                # Copy row formatting from template (only if target row doesn't already have it)
+                # Copy row formatting from template if needed
                 if target_row > ws.max_row or target_row != template_data_row:
-                    # Copy entire row formatting
                     for col_num in range(1, ws.max_column + 1):
                         template_cell = ws.cell(row=template_data_row, column=col_num)
                         target_cell = ws.cell(row=target_row, column=col_num)
-                        
-                        # Copy cell formatting (borders, fonts, alignment, etc.)
                         if template_cell.has_style:
                             target_cell.font = copy(template_cell.font)
                             target_cell.border = copy(template_cell.border)
@@ -260,20 +260,41 @@ def apply_template_to_data(
                             target_cell.number_format = copy(template_cell.number_format)
                             target_cell.protection = copy(template_cell.protection)
                             target_cell.alignment = copy(template_cell.alignment)
-                    
-                    # Copy row height if defined
                     if template_data_row in ws.row_dimensions and ws.row_dimensions[template_data_row].height:
                         ws.row_dimensions[target_row].height = ws.row_dimensions[template_data_row].height
                 
-                # Now fill in the values from circuit dict
-                ws.cell(row=target_row, column=circuit_col, value=circuit['number'])
-                ws.cell(row=target_row, column=desc_col, value=circuit['description'])
+                # Fill odd circuit data (A=Desc, B=Load, E=Pole, F=Amps, G=Circuit#)
+                ws.cell(row=target_row, column=odd_desc_col, value=circuit['description'])
+                ws.cell(row=target_row, column=odd_load_col, value=circuit['load'])
+                ws.cell(row=target_row, column=odd_poles_col, value=circuit['breaker_poles'])
+                ws.cell(row=target_row, column=odd_amps_col, value=circuit['breaker_amps'])
+                ws.cell(row=target_row, column=odd_circuit_col, value=circuit['number'])
+            
+            # Fill even circuits (column I, starting at row 12)
+            for idx, circuit in enumerate(even_circuits):
+                target_row = data_start_row + idx
                 
-                # Fill breaker data if columns were found
-                if breaker_amps_col:
-                    ws.cell(row=target_row, column=breaker_amps_col, value=circuit['breaker_amps'])
-                if breaker_poles_col:
-                    ws.cell(row=target_row, column=breaker_poles_col, value=circuit['breaker_poles'])
+                # Copy row formatting from template if needed (same logic as odd)
+                if target_row > ws.max_row or target_row != template_data_row:
+                    for col_num in range(1, ws.max_column + 1):
+                        template_cell = ws.cell(row=template_data_row, column=col_num)
+                        target_cell = ws.cell(row=target_row, column=col_num)
+                        if template_cell.has_style:
+                            target_cell.font = copy(template_cell.font)
+                            target_cell.border = copy(template_cell.border)
+                            target_cell.fill = copy(template_cell.fill)
+                            target_cell.number_format = copy(template_cell.number_format)
+                            target_cell.protection = copy(template_cell.protection)
+                            target_cell.alignment = copy(template_cell.alignment)
+                    if template_data_row in ws.row_dimensions and ws.row_dimensions[template_data_row].height:
+                        ws.row_dimensions[target_row].height = ws.row_dimensions[template_data_row].height
+                
+                # Fill even circuit data (I=Circuit#, J=Amps, K=Pole, L=Load, O=Desc)
+                ws.cell(row=target_row, column=even_circuit_col, value=circuit['number'])
+                ws.cell(row=target_row, column=even_amps_col, value=circuit['breaker_amps'])
+                ws.cell(row=target_row, column=even_poles_col, value=circuit['breaker_poles'])
+                ws.cell(row=target_row, column=even_load_col, value=circuit['load'])
+                ws.cell(row=target_row, column=even_desc_col, value=circuit['description'])
             
             # Note: All formulas from the original template are automatically preserved
             # when we load the template with openpyxl.load_workbook()

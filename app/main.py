@@ -504,6 +504,7 @@ def panel_ocr_to_excel(payload: dict):
       {
         "files": ["PB1_1.jpg","PB1_2.jpg"] | null to use all images in bucket for session
         "panel_name": "PB1",
+        "number_of_ckts": 42 | null (18-80, must be even),
         "session": "optional-session-id",
         "use_template": true | false (default: true)
       }
@@ -531,11 +532,24 @@ def panel_ocr_to_excel(payload: dict):
         lines = ocr_image_to_lines(path)
         all_lines.extend(lines)
 
-    circuits = parse_circuits_from_lines(all_lines)
     panel_specs = extract_panel_specs(all_lines)
+    
+    # Get number_of_ckts from payload, panel specs, or default determination
+    number_of_ckts = payload.get("number_of_ckts")
+    if not number_of_ckts and 'number_of_ckts' in panel_specs:
+        try:
+            number_of_ckts = int(panel_specs['number_of_ckts'])
+        except (ValueError, TypeError):
+            number_of_ckts = None
+    
+    circuits = parse_circuits_from_lines(all_lines, number_of_ckts)
+    
     # Use panel name from OCR extraction, default to MISSING if not found
     # Allow user override via payload if explicitly provided
     panel = payload.get("panel_name") or panel_specs.get("panel_name", "MISSING")
+    
+    # Store the determined number_of_ckts in panel_specs for template
+    panel_specs['number_of_ckts'] = len(circuits)
 
     # Look for template
     template_path = None

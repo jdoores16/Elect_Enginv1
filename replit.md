@@ -78,8 +78,10 @@ AI response style: Short and brief by default, only providing details when promp
 
 **OCR Skill**: Tesseract-based image-to-Excel conversion for panelboard photos
 - Image preprocessing (grayscale conversion)
-- Pattern matching for circuit number extraction
-- Template-aware Excel population
+- Pattern matching for circuit data extraction (1-42)
+- Extracts 4 parameters per circuit: Description, Load, Breaker Poles (1/2/3), Breaker Amps (NEC standard sizes)
+- Template-aware Excel population with odd/even circuit layout
+- Missing data marked as "MISSING" in output
 
 # External Dependencies
 
