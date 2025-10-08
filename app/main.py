@@ -405,8 +405,6 @@ def export_build_zip(payload: dict):
             xlsx_name = f"{pref}panel_schedule_{uuid.uuid4().hex}.xlsx"
             apply_template_to_data(circuits, panel_name, template, OUT / xlsx_name)
             generated.append(xlsx_name)
-        else:
-            logger.warning("No image files found for panel schedule generation")
 
     # Optional CSV panel schedule if present in plan
     if "panel_schedule" in plan and isinstance(plan["panel_schedule"], dict):
