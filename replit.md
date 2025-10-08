@@ -7,6 +7,7 @@ The application provides a web-based interface with voice-to-text input, AI text
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
+AI response style: Short and brief by default, only providing details when prompted.
 
 # System Architecture
 

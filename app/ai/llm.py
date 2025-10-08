@@ -51,14 +51,14 @@ SYSTEM_PROMPT = (
 def summarize_intent(user_text: str) -> str:
     if not OPENAI_API_KEY:
         logger.info("OpenAI API key not configured. Using fallback intent summarization.")
-        return f"I understand that you want: {user_text[:160]}"
+        return "Got it."
     try:
         from openai import OpenAI
         client = OpenAI(api_key=OPENAI_API_KEY)
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role":"system","content":"Summarize the user's request in one concise sentence starting with 'I understand that you want…'"},
+                {"role":"system","content":"Respond with a brief 3-5 word confirmation like 'Got it' or 'Understood'. Be extremely concise."},
                 {"role":"user","content": user_text}
             ],
             temperature=0.2
@@ -66,7 +66,7 @@ def summarize_intent(user_text: str) -> str:
         return resp.choices[0].message.content.strip()
     except Exception as e:
         logger.warning(f"OpenAI API error during intent summarization: {e.__class__.__name__}: {e}. Using fallback.")
-        return f"I understand that you want: {user_text[:160]}"
+        return "Got it."
 
 def plan_from_prompt(user_text: str, bucket_dir: str) -> Dict[str, Any]:
     files = _list_bucket(bucket_dir)

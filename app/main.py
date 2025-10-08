@@ -40,14 +40,16 @@ def health():
 
 # ---- Bucket (drag & drop) ----
 @app.post("/upload")
-async def upload(files: List[UploadFile] = File(...)):
+async def upload(files: List[UploadFile] = File(...), session: str | None = None):
     BUCKET.mkdir(parents=True, exist_ok=True)
     saved = []
+    pref = _session_prefix(session)
     for f in files:
-        dest = BUCKET / f.filename
+        filename = pref + f.filename
+        dest = BUCKET / filename
         with dest.open("wb") as out:
             shutil.copyfileobj(f.file, out)
-        saved.append(f.filename)
+        saved.append(filename)
     return {"saved": saved}
 
 @app.get("/bucket/list")
@@ -139,26 +141,26 @@ def run_command(payload: dict):
         if session_files:
             return {
                 "summary": summary,
-                "message": f"Got it! I'll create a panelboard schedule from your uploaded files.{file_info} Press the Build button to generate the Excel schedule.",
+                "message": f"Ready to build panel schedule.{file_info} Press Build when ready.",
                 "plan": plan
             }
         else:
             return {
                 "summary": summary,
-                "message": "I'll help you create a panelboard schedule. Please upload photos of the panelboard or an existing Excel template, then press Build to generate the schedule.",
+                "message": "Upload panel photos, then press Build.",
                 "plan": plan
             }
     
     if task in ["one_line", "power_plan", "lighting_plan", "revit_package"]:
         return {
             "summary": summary, 
-            "message": f"Got it! I've analyzed your request for a {task.replace('_', ' ')}.{file_info} Press the Build button when you're ready to generate the outputs.",
+            "message": f"Ready for {task.replace('_', ' ')}.{file_info} Press Build when ready.",
             "plan": plan
         }
 
     return {
         "summary": summary, 
-        "message": f"I'm listening and gathering information.{file_info} Let me know what you'd like to design (one-line, power plan, or lighting plan), then press Build when ready.",
+        "message": f"Listening.{file_info} Press Build when ready.",
         "plan": plan
     }
 
