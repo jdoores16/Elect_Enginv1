@@ -15,6 +15,13 @@ The application provides a web-based interface with voice-to-text input, AI text
 - Tracks templates, chat history, and learned workflows
 - Maintains long-term memory and knowledge
 - **Does everything the app is designed to do** - responds to queries, generates drawings, processes files, etc.
+- Detects tasks from voice/text prompts by identifying keywords:
+  - 'panelboard schedule' - generates panel schedules
+  - 'one line diagram' - creates one-line diagrams
+  - 'power plan' - builds power distribution plans
+  - 'lighting plan' - designs lighting layouts
+  - 'site plan' - produces site electrical plans
+  - 'details' - generates construction details
 
 **Task Build AI** - Temporary Worker:
 - Sent off by the Home AI to complete a specific task
