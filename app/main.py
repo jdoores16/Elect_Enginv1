@@ -165,7 +165,7 @@ def run_command(payload: dict):
                 if not number_of_ckts:
                     return {
                         "summary": "Got it.",
-                        "message": "How many circuits? (Please provide an even number between 18-80)",
+                        "message": "How many circuits? (Please provide an even number between 18-84)",
                         "plan": {"task": task_type, "project": params.get("project", "Project"), **params},
                         "needs_input": "number_of_ckts"
                     }
@@ -303,7 +303,7 @@ def run_command(payload: dict):
             if not number_of_ckts:
                 return {
                     "summary": confirmation,
-                    "message": "How many circuits? (Please provide an even number between 18-80)",
+                    "message": "How many circuits? (Please provide an even number between 18-84)",
                     "plan": plan,
                     "needs_input": "number_of_ckts"
                 }

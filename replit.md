@@ -110,6 +110,7 @@ AI response style: Short and brief by default, only providing details when promp
 - `task_state` table: Tracks active tasks per session for multi-turn conversations
 - Enables AI to maintain context across multiple user responses
 - Example flow: User says "build panelboard schedule" → AI asks "how many circuits?" → User says "42" → AI stays on task and confirms readiness
+- Valid circuit range: 18-84 circuits (must be even number) to support template with up to 84-circuit capacity
 - Task cleared when user says "finished", "done", "cancel", or "new task"
 - **Graceful Degradation**: If DATABASE_URL is not set, task state uses an in-memory dictionary fallback (persists only within server lifetime, lost on restart)
 - **In-Memory Fallback**: All confirmation and state management features work identically with or without PostgreSQL
@@ -137,6 +138,7 @@ AI response style: Short and brief by default, only providing details when promp
 - Image preprocessing (grayscale conversion)
 - Pattern matching for circuit data extraction (1-42)
 - Extracts 4 parameters per circuit: Description, Load, Breaker Poles (1/2/3), Breaker Amps (NEC standard sizes)
+- Circuit layout: Odd circuits in columns A-F, even circuits in columns J-O, starting at row 12 (row 11 = headers)
 - Template-aware Excel population with odd/even circuit layout
 - **AI Chat Completion**: AI extracts ALL panel parameters from text/voice input:
   - Panel name (e.g., "panel name is PP-TEST1" → extracts "PP-TEST1")

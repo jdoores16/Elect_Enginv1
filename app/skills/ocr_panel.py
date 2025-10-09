@@ -42,7 +42,7 @@ def parse_circuits_from_lines(lines: List[str], number_of_ckts: int = None) -> L
     
     Args:
         lines: OCR text lines to parse
-        number_of_ckts: Total number of circuits (18-80, even). If not provided, determined from max circuit found.
+        number_of_ckts: Total number of circuits (18-84, even). If not provided, determined from max circuit found.
     
     Returns:
         Complete list of circuits 1-N with "MISSING" for any data not found in OCR
@@ -71,12 +71,12 @@ def parse_circuits_from_lines(lines: List[str], number_of_ckts: int = None) -> L
     
     # Determine total number of circuits
     if number_of_ckts is None:
-        # Round up to nearest even number, clamped to 18-80
-        number_of_ckts = max(18, min(80, ((max_circuit_num + 1) // 2) * 2))
+        # Round up to nearest even number, clamped to 18-84
+        number_of_ckts = max(18, min(84, ((max_circuit_num + 1) // 2) * 2))
         logger.info(f"Determined number_of_ckts={number_of_ckts} from max circuit {max_circuit_num}")
     else:
         # Validate and round to even number
-        number_of_ckts = max(18, min(80, number_of_ckts))
+        number_of_ckts = max(18, min(84, number_of_ckts))
         if number_of_ckts % 2 != 0:
             number_of_ckts += 1
         logger.info(f"Using specified number_of_ckts={number_of_ckts}")

@@ -13,7 +13,7 @@ SCHEMA = {
     "project": {"type": "string"},
     "service_voltage": {"type": "string"},
     "service_amperes": {"type": "integer"},
-    "number_of_ckts": {"type": "integer", "minimum": 18, "maximum": 80, "description": "Number of circuits for panel schedule (must be even, 18-80)"},
+    "number_of_ckts": {"type": "integer", "minimum": 18, "maximum": 84, "description": "Number of circuits for panel schedule (must be even, 18-84)"},
     "panel_name": {"type": "string", "description": "Panel identifier/name for panel schedule (e.g., PP-TEST1, Panel A, LP-1)"},
     "panels": {"type": "array", "items": {"type": "object",
       "properties": {"name":{"type":"string"},"voltage":{"type":"string"},"bus_amperes":{"type":"integer"}},
@@ -49,7 +49,7 @@ SYSTEM_PROMPT = (
   "4) Do not include any units in numeric fields; put notes in 'notes'.\n"
   "5) Coordinates are in drawing units (feet).\n"
   "6) For panel_schedule tasks, extract ALL parameters from user text:\n"
-  "   - 'number_of_ckts': Extract from phrases like '42 circuits', 'forty-two', '42' (must be even, 18-80)\n"
+  "   - 'number_of_ckts': Extract from phrases like '42 circuits', 'forty-two', '42' (must be even, 18-84)\n"
   "   - 'panel_name': Extract from phrases like 'panel name is PP-TEST1', 'panel PP-1', 'called LP-A'\n"
   "   - Extract any other panel specifications mentioned (voltage, phase, amperes, etc.)\n"
   "7) Look for parameters in ANY user input, not just initial commands. Users may provide missing info in follow-up messages."
@@ -106,7 +106,7 @@ def plan_from_prompt(user_text: str, bucket_dir: str) -> Dict[str, Any]:
             try:
                 num = int(num_match.group(1))
                 # Validate and round to even number within range
-                if 18 <= num <= 80:
+                if 18 <= num <= 84:
                     number_of_ckts = num if num % 2 == 0 else num + 1
                     logger.info(f"Extracted number_of_ckts={number_of_ckts} from text")
             except ValueError:
