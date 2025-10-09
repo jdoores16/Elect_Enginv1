@@ -16,7 +16,7 @@ The application provides a web-based interface with voice-to-text input, AI text
 - Maintains long-term memory and knowledge
 - **Does everything the app is designed to do** - responds to queries, generates drawings, processes files, etc.
 - Detects tasks from voice/text prompts by identifying keywords:
-  - 'panelboard schedule' - generates panel schedules
+  - 'panelboard schedule' - uses OCR from uploaded photos and interactive chat to complete all fields
   - 'one line diagram' - creates one-line diagrams
   - 'power plan' - builds power distribution plans
   - 'lighting plan' - designs lighting layouts
@@ -133,12 +133,17 @@ AI response style: Short and brief by default, only providing details when promp
 - **Word Documentation**: Summary reports with scope, PE review notes, NEC references
 - **Package Assembly**: ZIP bundling of all deliverables per session
 
-**OCR Skill**: Tesseract-based image-to-Excel conversion for panelboard photos
+**OCR Skill with AI-Assisted Completion**: Tesseract-based image-to-Excel conversion for panelboard photos
 - Image preprocessing (grayscale conversion)
 - Pattern matching for circuit data extraction (1-42)
 - Extracts 4 parameters per circuit: Description, Load, Breaker Poles (1/2/3), Breaker Amps (NEC standard sizes)
 - Template-aware Excel population with odd/even circuit layout
-- Missing data marked as "MISSING" in output
+- **AI Chat Completion**: AI extracts ALL panel parameters from text/voice input:
+  - Panel name (e.g., "panel name is PP-TEST1" → extracts "PP-TEST1")
+  - Number of circuits (e.g., "42 circuits" → extracts 42)
+  - Other specifications (voltage, phase, amperes, etc.)
+- Combines OCR automation with interactive conversation for complete, accurate panel schedules
+- User input parameters override OCR data when provided
 
 # External Dependencies
 

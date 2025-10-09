@@ -264,9 +264,22 @@ def run_command(payload: dict):
         # Parse the user's response to extract parameters
         new_plan = plan_from_prompt(text, str(BUCKET))
         
-        # Update parameters from user response
+        # Track which parameters were newly extracted or updated
+        extracted_params = []
+        
+        # Update parameters from user response (allow overrides/corrections)
         if new_plan.get("number_of_ckts"):
-            params["number_of_ckts"] = new_plan["number_of_ckts"]
+            old_value = params.get("number_of_ckts")
+            new_value = new_plan["number_of_ckts"]
+            if old_value != new_value:
+                params["number_of_ckts"] = new_value
+                extracted_params.append(f"number of circuits is {new_value}")
+        if new_plan.get("panel_name"):
+            old_value = params.get("panel_name")
+            new_value = new_plan["panel_name"]
+            if old_value != new_value:
+                params["panel_name"] = new_value
+                extracted_params.append(f"panel name is {new_value}")
         
         # Save updated parameters
         update_task_parameters(session, params)
@@ -278,13 +291,18 @@ def run_command(payload: dict):
             **params
         }
         
+        # Build confirmation message
+        confirmation = "Got it."
+        if extracted_params:
+            confirmation = f"Got it, {', '.join(extracted_params)}."
+        
         # Check if we have all required parameters for panel_schedule
         if task_type == "panel_schedule":
             number_of_ckts = params.get("number_of_ckts")
             
             if not number_of_ckts:
                 return {
-                    "summary": "Got it.",
+                    "summary": confirmation,
                     "message": "How many circuits? (Please provide an even number between 18-80)",
                     "plan": plan,
                     "needs_input": "number_of_ckts"
@@ -298,7 +316,7 @@ def run_command(payload: dict):
                 file_info = " Upload panel photos for better results."
             
             return {
-                "summary": "Got it.",
+                "summary": confirmation,
                 "message": f"Ready to build {number_of_ckts}-circuit panel schedule.{file_info} Press Build when ready. (Say 'finished' to end your task)",
                 "plan": plan
             }
@@ -326,8 +344,11 @@ def run_command(payload: dict):
         }
         
         # Save any task-specific parameters from the initial command
-        if task == "panel_schedule" and plan.get("number_of_ckts"):
-            params["number_of_ckts"] = plan.get("number_of_ckts")
+        if task == "panel_schedule":
+            if plan.get("number_of_ckts"):
+                params["number_of_ckts"] = plan.get("number_of_ckts")
+            if plan.get("panel_name"):
+                params["panel_name"] = plan.get("panel_name")
         
         save_task_state(session, task, params)
         
@@ -578,10 +599,10 @@ def export_build_zip(payload: dict):
                 lines = ocr_image_to_lines(BUCKET / img_name)
                 all_lines.extend(lines)
             
-            circuits = parse_circuits_from_lines(all_lines)
+            circuits = parse_circuits_from_lines(all_lines, plan.get("number_of_ckts"))
             panel_specs = extract_panel_specs(all_lines)
-            # Use panel name from OCR extraction, default to MISSING if not found
-            panel_name = panel_specs.get("panel_name", "MISSING")
+            # Use panel name from user input (chat/voice), then OCR, then default to MISSING
+            panel_name = plan.get("panel_name") or panel_specs.get("panel_name", "MISSING")
             
             # Look for template
             template = find_template(BUCKET, pref)

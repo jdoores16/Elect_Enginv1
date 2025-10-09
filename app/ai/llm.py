@@ -14,6 +14,7 @@ SCHEMA = {
     "service_voltage": {"type": "string"},
     "service_amperes": {"type": "integer"},
     "number_of_ckts": {"type": "integer", "minimum": 18, "maximum": 80, "description": "Number of circuits for panel schedule (must be even, 18-80)"},
+    "panel_name": {"type": "string", "description": "Panel identifier/name for panel schedule (e.g., PP-TEST1, Panel A, LP-1)"},
     "panels": {"type": "array", "items": {"type": "object",
       "properties": {"name":{"type":"string"},"voltage":{"type":"string"},"bus_amperes":{"type":"integer"}},
       "required": ["name","voltage","bus_amperes"]
@@ -47,7 +48,11 @@ SYSTEM_PROMPT = (
   "3) If the task is ambiguous, make conservative assumptions and proceed.\n"
   "4) Do not include any units in numeric fields; put notes in 'notes'.\n"
   "5) Coordinates are in drawing units (feet).\n"
-  "6) For panel_schedule tasks, extract 'number_of_ckts' from the user's response if they specify a number (e.g., '42 circuits', 'forty-two', '42'). The number must be even and between 18-80."
+  "6) For panel_schedule tasks, extract ALL parameters from user text:\n"
+  "   - 'number_of_ckts': Extract from phrases like '42 circuits', 'forty-two', '42' (must be even, 18-80)\n"
+  "   - 'panel_name': Extract from phrases like 'panel name is PP-TEST1', 'panel PP-1', 'called LP-A'\n"
+  "   - Extract any other panel specifications mentioned (voltage, phase, amperes, etc.)\n"
+  "7) Look for parameters in ANY user input, not just initial commands. Users may provide missing info in follow-up messages."
 )
 
 def summarize_intent(user_text: str) -> str:
@@ -90,9 +95,11 @@ def plan_from_prompt(user_text: str, bucket_dir: str) -> Dict[str, Any]:
         elif any(kw in text_lower for kw in ["one line", "oneline", "one-line", "service", "feeder"]):
             task = "one_line"
         
-        # Extract number_of_ckts if present in text
+        # Extract parameters if present in text
         import re
         number_of_ckts = None
+        panel_name = None
+        
         # Look for patterns like "42", "42 circuits", "forty-two"
         num_match = re.search(r'\b(\d+)\s*(?:circuits?|ckts?|spaces?)?\b', text_lower)
         if num_match:
@@ -105,6 +112,21 @@ def plan_from_prompt(user_text: str, bucket_dir: str) -> Dict[str, Any]:
             except ValueError:
                 pass
         
+        # Look for panel name patterns - only explicit panel-specific phrases to avoid false positives
+        # Allow alphanumeric, spaces, hyphens in panel names (e.g., "Panel A", "PP-TEST1", "LP 1A")
+        panel_patterns = [
+            r'panel\s+name\s+(?:is\s+)?([A-Z0-9][A-Z0-9\-\s]*[A-Z0-9]|[A-Z0-9])',
+            r'panel\s+(?:is\s+)?called\s+([A-Z0-9][A-Z0-9\-\s]*[A-Z0-9]|[A-Z0-9])',
+            r'panel\s+(?:is\s+)?named\s+([A-Z0-9][A-Z0-9\-\s]*[A-Z0-9]|[A-Z0-9])',
+            r'panel\s+identifier\s+(?:is\s+)?([A-Z0-9][A-Z0-9\-\s]*[A-Z0-9]|[A-Z0-9])'
+        ]
+        for pattern in panel_patterns:
+            match = re.search(pattern, user_text, re.IGNORECASE)
+            if match:
+                panel_name = match.group(1).strip().upper()
+                logger.info(f"Extracted panel_name={panel_name} from text")
+                break
+        
         plan = {
           "task": task,
           "project": "Demo Project",
@@ -116,6 +138,8 @@ def plan_from_prompt(user_text: str, bucket_dir: str) -> Dict[str, Any]:
         }
         if number_of_ckts:
             plan["number_of_ckts"] = number_of_ckts
+        if panel_name:
+            plan["panel_name"] = panel_name
         return plan
     try:
         from openai import OpenAI
