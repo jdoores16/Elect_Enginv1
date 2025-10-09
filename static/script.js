@@ -331,20 +331,21 @@ function addMsg(role, text, options = {}) {
       if (options.needs_confirmation && !options.needs_finish_confirmation) {
         // Get current tab and its messages
         const currentTab = tabManager.getActiveTab();
-        const currentSessionId = currentTab.sessionId;
+        const taskSessionId = currentTab.sessionId; // This session has the task context
         
         // Create new task tab WITHOUT auto-switching
         const newTab = tabManager.createTab('task', false);
         
-        // Configure the new tab to use the SAME session
-        newTab.sessionId = currentSessionId;
+        // Task tab INHERITS the current session ID to maintain backend context
+        newTab.sessionId = taskSessionId;
         
         // Move current conversation to new tab
         newTab.messages = [...currentTab.messages];
         
-        // Clear home tab if we're leaving it
+        // Give home tab a NEW session ID for next task
         if (currentTab.id === 'home') {
           currentTab.messages = [];
+          currentTab.sessionId = (crypto.randomUUID && crypto.randomUUID()) || (Date.now().toString(36) + Math.random().toString(36).slice(2,8));
         }
         
         // Save updated tab state
@@ -353,10 +354,10 @@ function addMsg(role, text, options = {}) {
         // Now switch to the new tab (will restore messages with skipSave)
         tabManager.switchToTab(newTab.id);
         
-        // Update global session
+        // Update global session to the task tab's session (same as old session)
         window.currentSessionId = newTab.sessionId;
         
-        // Send "yes" in the same session context
+        // Send "yes" to confirm the task (in the task tab's context)
         textInput.value = 'yes';
         sendBtn.click();
       } else {
