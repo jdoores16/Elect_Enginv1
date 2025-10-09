@@ -299,14 +299,14 @@ def run_command(payload: dict):
             
             return {
                 "summary": "Got it.",
-                "message": f"Ready to build {number_of_ckts}-circuit panel schedule.{file_info} Press Build when ready. (Say 'finished' to start a new task)",
+                "message": f"Ready to build {number_of_ckts}-circuit panel schedule.{file_info} Press Build when ready. (Say 'finished' to end your task)",
                 "plan": plan
             }
         
         # For other tasks, return ready message
         return {
             "summary": "Got it.",
-            "message": f"Ready for {task_type.replace('_', ' ')}. Press Build when ready. (Say 'finished' to start a new task)",
+            "message": f"Ready for {task_type.replace('_', ' ')}. Press Build when ready. (Say 'finished' to end your task)",
             "plan": plan
         }
     

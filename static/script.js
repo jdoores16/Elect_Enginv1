@@ -154,10 +154,12 @@ class TabManager {
       // Update global sessionId
       window.currentSessionId = tab.sessionId;
       
-      // Restore chat messages
+      // Restore chat messages (with skipSave flag to prevent duplication)
       thread.innerHTML = '';
       tab.messages.forEach(msg => {
-        addMsg(msg.role, msg.text, msg.options || {});
+        const opts = msg.options || {};
+        opts.skipSave = true;  // Don't save replayed messages
+        addMsg(msg.role, msg.text, opts);
       });
       
       // Refresh file and output lists
@@ -323,8 +325,29 @@ function addMsg(role, text, options = {}) {
     yesBtn.onclick = () => {
       // If this is task confirmation (not finish confirmation), create a new tab
       if (options.needs_confirmation && !options.needs_finish_confirmation) {
+        // Get current tab and its messages
+        const currentTab = tabManager.getActiveTab();
+        const currentSessionId = currentTab.sessionId;
+        
+        // Create new task tab with the SAME session to maintain context
         const newTab = tabManager.createTab('task');
-        // The new tab is now active, send "yes" in the new tab context
+        newTab.sessionId = currentSessionId;  // Keep same session
+        
+        // Move current conversation to new tab
+        newTab.messages = [...currentTab.messages];
+        
+        // Clear home tab if we're leaving it
+        if (currentTab.id === 'home') {
+          currentTab.messages = [];
+        }
+        
+        // Update global session
+        window.currentSessionId = newTab.sessionId;
+        
+        // Switch to new tab will restore the messages
+        tabManager.switchToTab(newTab.id);
+        
+        // Send "yes" in the same session context
         textInput.value = 'yes';
         sendBtn.click();
       } else {
@@ -355,8 +378,10 @@ function addMsg(role, text, options = {}) {
   thread.appendChild(div);
   thread.scrollTop = thread.scrollHeight;
   
-  // Save message to tab
-  tabManager.saveMessage(role, text, options);
+  // Save message to tab ONLY if not replaying from storage
+  if (!options.skipSave) {
+    tabManager.saveMessage(role, text, options);
+  }
   
   if (role === 'ai' && !options.needs_confirmation && !options.needs_finish_confirmation) speak(text);
 }
