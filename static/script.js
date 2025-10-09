@@ -113,7 +113,7 @@ class TabManager {
     return todayTabs.length + 1;
   }
   
-  createTab(type = 'task') {
+  createTab(type = 'task', autoSwitch = true) {
     let name, tabId;
     if (type === 'home') {
       name = 'Home';
@@ -140,7 +140,11 @@ class TabManager {
     this.activeTabId = tabId;
     this.saveToStorage();
     this.renderTabs();
-    this.switchToTab(tabId);
+    
+    if (autoSwitch) {
+      this.switchToTab(tabId);
+    }
+    
     return tab;
   }
   
@@ -329,9 +333,11 @@ function addMsg(role, text, options = {}) {
         const currentTab = tabManager.getActiveTab();
         const currentSessionId = currentTab.sessionId;
         
-        // Create new task tab with the SAME session to maintain context
-        const newTab = tabManager.createTab('task');
-        newTab.sessionId = currentSessionId;  // Keep same session
+        // Create new task tab WITHOUT auto-switching
+        const newTab = tabManager.createTab('task', false);
+        
+        // Configure the new tab to use the SAME session
+        newTab.sessionId = currentSessionId;
         
         // Move current conversation to new tab
         newTab.messages = [...currentTab.messages];
@@ -341,11 +347,14 @@ function addMsg(role, text, options = {}) {
           currentTab.messages = [];
         }
         
+        // Save updated tab state
+        tabManager.saveToStorage();
+        
+        // Now switch to the new tab (will restore messages with skipSave)
+        tabManager.switchToTab(newTab.id);
+        
         // Update global session
         window.currentSessionId = newTab.sessionId;
-        
-        // Switch to new tab will restore the messages
-        tabManager.switchToTab(newTab.id);
         
         // Send "yes" in the same session context
         textInput.value = 'yes';
