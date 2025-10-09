@@ -6,23 +6,26 @@ The application provides a web-based interface with voice-to-text input, AI text
 
 ## AI Architecture
 
-**Persistent AI (Home Screen)**:
+**Central AI Brain**: Both Home and Task Build AIs pull knowledge and processing power from the same central intelligence.
+
+**Persistent AI (Home Screen)** - The Ever-Learning Master:
 - The true design engineer being trained and taught
 - Lives in the Home tab permanently
 - Learns, adapts, and grows from all interactions
 - Tracks templates, chat history, and learned workflows
 - Maintains long-term memory and knowledge
-- Responds to user queries and performs any task in Home tab
-- **Copies itself** at current state when user starts a Task Build
+- **Does everything the app is designed to do** - responds to queries, generates drawings, processes files, etc.
 
-**Task Build System (Ephemeral Workspaces)**:
-- Each Task Build starts with a **copy** of the Home AI's current knowledge
-- Works with snapshot of templates, workflows, and learned patterns
+**Task Build AI** - Temporary Worker:
+- Sent off by the Home AI to complete a specific task
+- Has the **full power** of the central AI brain to complete tasks
+- Works with current templates, workflows, and learned patterns from the master
 - Task Builds are completely ephemeral - temporary workspaces with zero long-term storage
 - Chat conversations are NOT saved
 - Uploaded files are NOT saved  
 - Generated outputs are NOT saved
 - Workflow learning is NOT retained
+- Nothing remains from the task when it ends
 
 **Automatic Deletion Triggers** - Task build ends and all data is deleted when:
 1. User says "finished" (explicit completion)
@@ -34,6 +37,11 @@ The application provides a web-based interface with voice-to-text input, AI text
 - Task tabs: Date-based naming (YYMMDD_T#) with auto-incrementing daily counters
 - Independent AI context: Each tab has unique session ID for "divided brain" operation
 - AI responds independently to Home tab and all Task Build tabs
+
+**Project Builds (Future Feature)**:
+- Projects are where data will be saved and stored long-term
+- Unlike Task Builds, Project Builds persist chat, files, outputs, and workflow learning
+- Accessible via "Create New Project Build" and "Open Project Build" buttons (currently disabled)
 
 # User Preferences
 
