@@ -92,9 +92,9 @@ class TabManager {
     this.activeTabId = null;
     this.loadFromStorage();
     
-    // If no tabs, create initial tab
+    // If no tabs, create initial tab (without auto-switching since DOM not ready yet)
     if (this.tabs.length === 0) {
-      this.createTab('home');
+      this.createTab('home', false);
     }
     
     // Clear Home tab messages on initial load to show welcome screen
@@ -105,6 +105,16 @@ class TabManager {
     }
     
     this.renderTabs();
+  }
+  
+  initializeActiveTab() {
+    // Switch to active tab or Home tab on initial load (called after DOM is ready)
+    const homeTab = this.tabs.find(t => t.id === 'home');
+    if (this.activeTabId) {
+      this.switchToTab(this.activeTabId);
+    } else if (homeTab) {
+      this.switchToTab('home');
+    }
   }
   
   getDatePrefix() {
@@ -385,6 +395,9 @@ const fileInput = document.getElementById('fileInput');
 
 let lastPlan = null; // store latest planner JSON
 let lastIntent = null;
+
+// Initialize active tab now that DOM elements are ready
+tabManager.initializeActiveTab();
 
 // Helpers
 function addMsg(role, text, options = {}) {
