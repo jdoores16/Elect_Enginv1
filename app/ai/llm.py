@@ -75,6 +75,74 @@ def summarize_intent(user_text: str) -> str:
         logger.warning(f"OpenAI API error during intent summarization: {e.__class__.__name__}: {e}. Using fallback.")
         return "Got it."
 
+def extract_panel_specs_from_text(user_text: str) -> Dict[str, str]:
+    """
+    Extract panel specifications from voice/text input.
+    Similar to OCR extraction but for conversational input.
+    Returns dict with keys: voltage, phase, wire, main_bus_amps, main_breaker, mounting, feed, location
+    """
+    import re
+    
+    specs = {}
+    text_lower = user_text.lower()
+    
+    # Voltage patterns: "480/277V", "480 volt", "208V"
+    voltage_match = re.search(r'(\d+(?:/\d+)?)\s*v(?:olt(?:s|age)?)?', text_lower)
+    if voltage_match:
+        specs['voltage'] = voltage_match.group(1).upper() + 'V'
+        logger.info(f"Extracted voltage: {specs['voltage']}")
+    
+    # Phase patterns: "3 phase", "single phase", "1-phase"
+    phase_match = re.search(r'(?:(\d+|single|three|one)[\s-]*phase)', text_lower)
+    if phase_match:
+        phase_val = phase_match.group(1)
+        if phase_val in ['three', '3']:
+            specs['phase'] = '3'
+        elif phase_val in ['single', 'one', '1']:
+            specs['phase'] = '1'
+        else:
+            specs['phase'] = phase_val
+        logger.info(f"Extracted phase: {specs['phase']}")
+    
+    # Wire patterns: "4 wire", "3W"
+    wire_match = re.search(r'(\d+)\s*w(?:ire)?', text_lower)
+    if wire_match:
+        specs['wire'] = wire_match.group(1)
+        logger.info(f"Extracted wire: {specs['wire']}")
+    
+    # Main bus amps patterns: "400A", "400 amps"
+    bus_amps_match = re.search(r'(?:main\s+bus\s+|bus\s+)?(\d+)\s*a(?:mp(?:s|ere)?)?', text_lower)
+    if bus_amps_match:
+        specs['main_bus_amps'] = bus_amps_match.group(1)
+        logger.info(f"Extracted main_bus_amps: {specs['main_bus_amps']}")
+    
+    # Main breaker: "100AF/70AT"
+    breaker_match = re.search(r'(?:main\s+breaker|breaker|mcb)[\s:]*([A-Z0-9/]+)', user_text, re.IGNORECASE)
+    if breaker_match:
+        specs['main_breaker'] = breaker_match.group(1).upper()
+        logger.info(f"Extracted main_breaker: {specs['main_breaker']}")
+    
+    # Mounting: "flush", "surface", "recess"
+    mounting_match = re.search(r'(flush|surface|recess(?:ed)?)\s*mount', text_lower)
+    if mounting_match:
+        specs['mounting'] = mounting_match.group(1).upper()
+        logger.info(f"Extracted mounting: {specs['mounting']}")
+    
+    # Feed from: "MDP", "panel A"
+    feed_match = re.search(r'(?:feed\s+from|fed\s+from)[\s:]*([A-Z0-9\s\-]+)', user_text, re.IGNORECASE)
+    if feed_match:
+        specs['feed'] = feed_match.group(1).strip()
+        logger.info(f"Extracted feed: {specs['feed']}")
+    
+    # Location: "room 101", "first floor"
+    location_match = re.search(r'(?:location|located\s+(?:in|at))[\s:]*([^,.]+)', text_lower)
+    if location_match:
+        specs['location'] = location_match.group(1).strip().title()
+        logger.info(f"Extracted location: {specs['location']}")
+    
+    return specs
+
+
 def plan_from_prompt(user_text: str, bucket_dir: str) -> Dict[str, Any]:
     files = _list_bucket(bucket_dir)
     if not OPENAI_API_KEY:

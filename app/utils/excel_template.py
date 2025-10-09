@@ -53,43 +53,47 @@ def find_template(bucket_dir: Path, session_prefix: str = "") -> Optional[Path]:
     return None
 
 
-def extract_template_parameters(template_path: Path) -> List[str]:
+def extract_template_parameters(template_path: Path) -> Dict[str, str]:
     """
-    Extract parameter names from template.
+    Extract parameter names and default values from template.
     Reads labels from A2-A9 (left side) and N2-N9 (right side).
-    These labels indicate what values should be collected and placed in B2-B9 and O2-O9.
+    Reads default values from B2-B9 (left values) and O2-O9 (right values).
     
     Returns:
-        List of parameter label strings
+        Dict mapping parameter names to their default values (empty string if no default)
     """
     try:
         wb = openpyxl.load_workbook(template_path)
         ws = wb.active
         
-        parameters = []
+        parameters = {}
         
-        # Extract left side parameters from A2-A9
+        # Extract left side parameters from A2-A9 with values from B2-B9
         for row in range(2, 10):
-            cell = ws.cell(row=row, column=1)  # Column A
-            if cell.value:
-                param_name = str(cell.value).strip()
+            label_cell = ws.cell(row=row, column=1)  # Column A
+            value_cell = ws.cell(row=row, column=2)  # Column B
+            if label_cell.value:
+                param_name = str(label_cell.value).strip()
                 if param_name:
-                    parameters.append(param_name)
+                    default_value = str(value_cell.value).strip() if value_cell.value else ""
+                    parameters[param_name] = default_value
         
-        # Extract right side parameters from N2-N9
+        # Extract right side parameters from N2-N9 with values from O2-O9
         for row in range(2, 10):
-            cell = ws.cell(row=row, column=14)  # Column N
-            if cell.value:
-                param_name = str(cell.value).strip()
+            label_cell = ws.cell(row=row, column=14)  # Column N
+            value_cell = ws.cell(row=row, column=15)  # Column O
+            if label_cell.value:
+                param_name = str(label_cell.value).strip()
                 if param_name:
-                    parameters.append(param_name)
+                    default_value = str(value_cell.value).strip() if value_cell.value else ""
+                    parameters[param_name] = default_value
         
-        logger.info(f"Extracted {len(parameters)} parameter labels from template: {parameters}")
+        logger.info(f"Extracted {len(parameters)} parameters with defaults from template")
         return parameters
         
     except Exception as e:
         logger.error(f"Failed to extract parameters from template: {e}")
-        return []
+        return {}
 
 
 def read_template_structure(template_path: Path) -> Dict:
@@ -213,19 +217,22 @@ def apply_template_to_data(
                             matched_value = None
                             for spec_key, keywords in label_mapping.items():
                                 if any(keyword in label for keyword in keywords):
-                                    # Check if we have the spec value, otherwise mark as MISSING
-                                    matched_value = panel_specs.get(spec_key, "MISSING")
-                                    break
+                                    # Only update if user provided this specific value
+                                    if spec_key in panel_specs:
+                                        matched_value = panel_specs.get(spec_key)
+                                        break
                             
-                            # If no keyword matched, default to MISSING for any labeled field
-                            if matched_value is None:
-                                matched_value = "MISSING"
-                                logger.info(f"No keyword match for label '{label}' - marking as MISSING")
-                            
-                            # Update value cell with matched value or MISSING
-                            col_letter = openpyxl.utils.get_column_letter(value_col)
-                            ws.cell(row=row_num, column=value_col, value=matched_value)
-                            logger.info(f"Updated {label} ({col_letter}{row_num}) to: {matched_value}")
+                            # Only update the cell if we found a user-provided value
+                            # Otherwise, preserve the template's default value
+                            if matched_value is not None:
+                                col_letter = openpyxl.utils.get_column_letter(value_col)
+                                ws.cell(row=row_num, column=value_col, value=matched_value)
+                                logger.info(f"Updated {label} ({col_letter}{row_num}) to: {matched_value}")
+                            else:
+                                # Keep template default - don't overwrite
+                                col_letter = openpyxl.utils.get_column_letter(value_col)
+                                current_value = ws.cell(row=row_num, column=value_col).value
+                                logger.info(f"Preserving template default for {label} ({col_letter}{row_num}): {current_value}")
             
             # Find the data table header block (may span multiple rows)
             # Look for keywords like "LOAD DESCRIPTION", "CKT", etc.

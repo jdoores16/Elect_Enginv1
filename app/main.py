@@ -10,7 +10,7 @@ from app.schemas.models import OneLineRequest, PlanRequest
 from app.cad.one_line import generate_one_line_dxf
 from app.cad.power_plan import generate_power_plan_dxf
 from app.cad.lighting_plan import generate_lighting_plan_dxf
-from app.ai.llm import plan_from_prompt, summarize_intent
+from app.ai.llm import plan_from_prompt, summarize_intent, extract_panel_specs_from_text
 from app.db import init_db, get_active_task, save_task_state, update_task_parameters, clear_task_state
 from app.utils.excel_template import find_template, extract_template_parameters
 
@@ -275,6 +275,15 @@ def run_command(payload: dict):
         
         # Track which parameters were newly extracted or updated
         extracted_params = []
+        
+        # Extract panel specs from text (voltage, phase, etc.)
+        panel_specs_from_text = extract_panel_specs_from_text(text)
+        if panel_specs_from_text:
+            if "panel_specs" not in params:
+                params["panel_specs"] = {}
+            params["panel_specs"].update(panel_specs_from_text)
+            for key, value in panel_specs_from_text.items():
+                extracted_params.append(f"{key} is {value}")
         
         # Update parameters from user response (allow overrides/corrections)
         if new_plan.get("number_of_ckts"):
@@ -617,17 +626,26 @@ def export_build_zip(payload: dict):
                 all_lines.extend(lines)
             
             circuits = parse_circuits_from_lines(all_lines, plan.get("number_of_ckts"))
-            panel_specs = extract_panel_specs(all_lines)
-            # Use panel name from user input (chat/voice), then OCR, then default to MISSING
-            panel_name = plan.get("panel_name") or panel_specs.get("panel_name", "MISSING")
-            
-            # Look for template
-            template = find_template(BUCKET, pref)
-            
-            # Generate Excel
-            xlsx_name = _short_filename('panel_schedule', 'xlsx', session)
-            apply_template_to_data(circuits, panel_name, template, OUT / xlsx_name, panel_specs)
-            generated.append(xlsx_name)
+            panel_specs_ocr = extract_panel_specs(all_lines)
+        else:
+            circuits = []
+            panel_specs_ocr = {}
+        
+        # Merge OCR specs with user-provided specs (user specs take priority)
+        panel_specs = panel_specs_ocr.copy()
+        if plan.get("panel_specs"):
+            panel_specs.update(plan["panel_specs"])
+        
+        # Use panel name from user input (chat/voice), then OCR, then default to MISSING
+        panel_name = plan.get("panel_name") or panel_specs.get("panel_name", "MISSING")
+        
+        # Look for template
+        template = find_template(BUCKET, pref)
+        
+        # Generate Excel (simplified - just copy template with parameter updates for now)
+        xlsx_name = _short_filename('panel_schedule', 'xlsx', session)
+        apply_template_to_data(circuits, panel_name, template, OUT / xlsx_name, panel_specs)
+        generated.append(xlsx_name)
 
     # Optional CSV panel schedule if present in plan
     if "panel_schedule" in plan and isinstance(plan["panel_schedule"], dict):
