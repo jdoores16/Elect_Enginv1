@@ -2,7 +2,33 @@
 
 AI Design Engineer V7 is an AI-powered assistant for electrical engineers that generates construction drawings and documents from text or voice commands. The system produces industry-standard outputs including DXF CAD files, PDFs, Excel panel schedules, Word documentation, and packaged ZIP deliverables for electrical power system design projects.
 
-The application provides a web-based interface with voice-to-text input, AI text-to-speech responses with wave visualization, drag-and-drop file upload, and session-based project isolation. It supports generating one-line diagrams, power plans, lighting plans, and panel schedules, with built-in OCR capabilities to convert panelboard photos into Excel schedules.
+The application provides a web-based interface with voice-to-text input, AI text-to-speech responses with wave visualization, drag-and-drop file upload, and tab-based multi-task system. It supports generating one-line diagrams, power plans, lighting plans, and panel schedules, with built-in OCR capabilities to convert panelboard photos into Excel schedules.
+
+## AI Architecture
+
+**Persistent AI (Home Screen)**:
+- Lives in the Home tab permanently
+- Learns, adapts, and grows from all interactions
+- Maintains long-term memory and workflow knowledge
+- Responds to user queries in Home tab
+
+**Task Build System (Ephemeral Workspaces)**:
+- Task Builds are completely ephemeral - temporary workspaces with zero long-term storage
+- Chat conversations are NOT saved
+- Uploaded files are NOT saved  
+- Generated outputs are NOT saved
+- Workflow learning is NOT retained
+
+**Automatic Deletion Triggers** - Task build ends and all data is deleted when:
+1. User says "finished" (explicit completion)
+2. Tab is closed/exited (user navigates away)
+3. 24 hours pass from task build start (automatic expiry)
+
+**Tab System Architecture:**
+- Home tab: Welcome screen with "What can I build for you?" and three options (Task Build, Create New Project Build, Open Project Build)
+- Task tabs: Date-based naming (YYMMDD_T#) with auto-incrementing daily counters
+- Independent AI context: Each tab has unique session ID for "divided brain" operation
+- AI responds independently to Home tab and all Task Build tabs
 
 # User Preferences
 
