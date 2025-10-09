@@ -335,15 +335,34 @@ def run_command(payload: dict):
                 }
             
             # All parameters collected!
-            file_info = ""
-            if session_files:
-                file_info = f" I see {len(session_files)} reference file(s)."
+            # Track if this is the first time we have circuit count
+            first_circuit_count = "number_of_ckts" not in params or params.get("number_of_ckts") != number_of_ckts
+            
+            # Track prompt count to avoid repetitive "Ready to build..." message
+            if first_circuit_count:
+                params["prompt_count"] = 1  # Reset counter when circuit count is first set/changed
             else:
-                file_info = " Upload panel photos for better results."
+                params["prompt_count"] = params.get("prompt_count", 0) + 1
+            
+            prompt_count = params["prompt_count"]
+            update_task_parameters(session, params)
+            
+            # Show "Ready to build..." message when circuit count is first set, or every 10 prompts after
+            if first_circuit_count or prompt_count % 10 == 0:
+                file_info = ""
+                if session_files:
+                    file_info = f" I see {len(session_files)} reference file(s)."
+                else:
+                    file_info = " Upload panel photos for better results."
+                
+                message = f"Ready to build {number_of_ckts}-circuit panel schedule.{file_info} Press Build when ready. (Say 'finished' to end your task)"
+            else:
+                # Just acknowledge without repeating the ready message
+                message = "Got it." if not confirmation or confirmation == "Got it." else confirmation
             
             return {
                 "summary": confirmation,
-                "message": f"Ready to build {number_of_ckts}-circuit panel schedule.{file_info} Press Build when ready. (Say 'finished' to end your task)",
+                "message": message,
                 "plan": plan
             }
         
