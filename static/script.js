@@ -201,18 +201,67 @@ function speak(text) {
 
 // Voice input
 let rec = null;
+let isRecording = false;
+
 if ('webkitSpeechRecognition' in window) {
   rec = new webkitSpeechRecognition();
-  rec.continuous = false; rec.interimResults = false; rec.lang = 'en-US';
+  rec.continuous = false; 
+  rec.interimResults = false; 
+  rec.lang = 'en-US';
+  
+  rec.onstart = () => {
+    isRecording = true;
+    micBtn.style.background = '#ff4444';
+    console.log('Speech recognition started');
+  };
+  
   rec.onresult = (e) => {
     const txt = e.results[0][0].transcript;
     textInput.value = txt;
+    console.log('Speech recognized:', txt);
+  };
+  
+  rec.onerror = (e) => {
+    console.error('Speech recognition error:', e.error);
+    isRecording = false;
+    micBtn.style.background = '';
+    if (e.error === 'no-speech') {
+      addMsg('ai', 'No speech detected. Please try again.');
+    } else if (e.error === 'not-allowed') {
+      addMsg('ai', 'Microphone permission denied. Please allow microphone access in your browser settings.');
+    } else {
+      addMsg('ai', `Speech recognition error: ${e.error}`);
+    }
+  };
+  
+  rec.onend = () => {
+    isRecording = false;
+    micBtn.style.background = '';
+    console.log('Speech recognition ended');
   };
 }
 
-micBtn.addEventListener('mousedown', () => rec && rec.start());
-micBtn.addEventListener('mouseup', () => rec && rec.stop());
-micBtn.addEventListener('mouseleave', () => rec && rec.stop());
+micBtn.addEventListener('mousedown', () => {
+  if (rec && !isRecording) {
+    try {
+      rec.start();
+    } catch (e) {
+      console.error('Failed to start recording:', e);
+    }
+  }
+});
+
+micBtn.addEventListener('mouseup', () => {
+  if (rec && isRecording) {
+    rec.stop();
+  }
+});
+
+micBtn.addEventListener('mouseleave', () => {
+  if (rec && isRecording) {
+    rec.stop();
+  }
+});
 
 // Drag & drop
 async function uploadFiles(files) {
