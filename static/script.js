@@ -85,8 +85,171 @@ class WaveVisualizer {
 }
 
 
-// Session ID for isolated files
-const sessionId = (crypto.randomUUID && crypto.randomUUID()) || (Date.now().toString(36) + Math.random().toString(36).slice(2,8));
+// Tab Management System
+class TabManager {
+  constructor() {
+    this.tabs = [];
+    this.activeTabId = null;
+    this.loadFromStorage();
+    
+    // If no tabs, create initial tab
+    if (this.tabs.length === 0) {
+      this.createTab('home');
+    }
+    this.renderTabs();
+  }
+  
+  getDatePrefix() {
+    const now = new Date();
+    const yy = String(now.getFullYear()).slice(2);
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    return `${yy}${mm}${dd}`;
+  }
+  
+  getNextTaskNumber() {
+    const datePrefix = this.getDatePrefix();
+    const todayTabs = this.tabs.filter(t => t.name.startsWith(datePrefix));
+    return todayTabs.length + 1;
+  }
+  
+  createTab(type = 'task') {
+    let name, tabId;
+    if (type === 'home') {
+      name = 'Home';
+      tabId = 'home';
+    } else {
+      const datePrefix = this.getDatePrefix();
+      const taskNum = this.getNextTaskNumber();
+      name = `${datePrefix}_T${taskNum}`;
+      tabId = `${datePrefix}_T${taskNum}`;
+    }
+    
+    const sessionId = (crypto.randomUUID && crypto.randomUUID()) || (Date.now().toString(36) + Math.random().toString(36).slice(2,8));
+    
+    const tab = {
+      id: tabId,
+      name: name,
+      sessionId: sessionId,
+      messages: [],
+      files: [],
+      outputs: []
+    };
+    
+    this.tabs.push(tab);
+    this.activeTabId = tabId;
+    this.saveToStorage();
+    this.renderTabs();
+    this.switchToTab(tabId);
+    return tab;
+  }
+  
+  switchToTab(tabId) {
+    this.activeTabId = tabId;
+    this.saveToStorage();
+    this.renderTabs();
+    
+    const tab = this.getActiveTab();
+    if (tab) {
+      // Update global sessionId
+      window.currentSessionId = tab.sessionId;
+      
+      // Restore chat messages
+      thread.innerHTML = '';
+      tab.messages.forEach(msg => {
+        addMsg(msg.role, msg.text, msg.options || {});
+      });
+      
+      // Refresh file and output lists
+      refreshUploads();
+      refreshOutputs();
+    }
+  }
+  
+  closeTab(tabId) {
+    const index = this.tabs.findIndex(t => t.id === tabId);
+    if (index === -1) return;
+    
+    // Don't close the last tab
+    if (this.tabs.length === 1) return;
+    
+    this.tabs.splice(index, 1);
+    
+    // If closing active tab, switch to previous or next
+    if (this.activeTabId === tabId) {
+      const newIndex = Math.min(index, this.tabs.length - 1);
+      this.activeTabId = this.tabs[newIndex].id;
+    }
+    
+    this.saveToStorage();
+    this.renderTabs();
+    this.switchToTab(this.activeTabId);
+  }
+  
+  getActiveTab() {
+    return this.tabs.find(t => t.id === this.activeTabId);
+  }
+  
+  saveMessage(role, text, options) {
+    const tab = this.getActiveTab();
+    if (tab) {
+      tab.messages.push({ role, text, options });
+      this.saveToStorage();
+    }
+  }
+  
+  renderTabs() {
+    const tabBar = document.getElementById('tabBar');
+    tabBar.innerHTML = '';
+    
+    this.tabs.forEach(tab => {
+      const tabEl = document.createElement('div');
+      tabEl.className = 'tab' + (tab.id === this.activeTabId ? ' active' : '');
+      tabEl.innerHTML = `${tab.name}${tab.id !== 'home' ? '<span class="tab-close">×</span>' : ''}`;
+      
+      tabEl.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tab-close')) {
+          this.closeTab(tab.id);
+        } else {
+          this.switchToTab(tab.id);
+        }
+      });
+      
+      tabBar.appendChild(tabEl);
+    });
+  }
+  
+  saveToStorage() {
+    try {
+      localStorage.setItem('tabs', JSON.stringify({
+        tabs: this.tabs,
+        activeTabId: this.activeTabId
+      }));
+    } catch (e) {
+      console.error('Failed to save tabs:', e);
+    }
+  }
+  
+  loadFromStorage() {
+    try {
+      const data = localStorage.getItem('tabs');
+      if (data) {
+        const parsed = JSON.parse(data);
+        this.tabs = parsed.tabs || [];
+        this.activeTabId = parsed.activeTabId;
+      }
+    } catch (e) {
+      console.error('Failed to load tabs:', e);
+    }
+  }
+}
+
+// Initialize tab manager
+const tabManager = new TabManager();
+
+// Session ID for isolated files (now managed by tab manager)
+let sessionId = tabManager.getActiveTab()?.sessionId || (crypto.randomUUID && crypto.randomUUID()) || (Date.now().toString(36) + Math.random().toString(36).slice(2,8));
+window.currentSessionId = sessionId;
 
 const checklistEl = document.getElementById('checklist');
 
@@ -158,8 +321,17 @@ function addMsg(role, text, options = {}) {
     yesBtn.textContent = 'Yes';
     yesBtn.className = 'confirm-btn yes-btn';
     yesBtn.onclick = () => {
-      textInput.value = 'yes';
-      sendBtn.click();
+      // If this is task confirmation (not finish confirmation), create a new tab
+      if (options.needs_confirmation && !options.needs_finish_confirmation) {
+        const newTab = tabManager.createTab('task');
+        // The new tab is now active, send "yes" in the new tab context
+        textInput.value = 'yes';
+        sendBtn.click();
+      } else {
+        // For finish confirmation, just send yes
+        textInput.value = 'yes';
+        sendBtn.click();
+      }
     };
     
     // No button
@@ -182,6 +354,10 @@ function addMsg(role, text, options = {}) {
   
   thread.appendChild(div);
   thread.scrollTop = thread.scrollHeight;
+  
+  // Save message to tab
+  tabManager.saveMessage(role, text, options);
+  
   if (role === 'ai' && !options.needs_confirmation && !options.needs_finish_confirmation) speak(text);
 }
 function speak(text) {
@@ -302,7 +478,7 @@ async function uploadFiles(files) {
     for (const file of fileArray) {
       fd.append('files', file);
     }
-    const r = await fetch('/bucket/upload?session=' + encodeURIComponent(sessionId), { method:'POST', body: fd });
+    const r = await fetch('/bucket/upload?session=' + encodeURIComponent(window.currentSessionId), { method:'POST', body: fd });
     
     if (!r.ok) {
       throw new Error(`Upload failed: ${r.status} ${r.statusText}`);
@@ -338,7 +514,7 @@ sendBtn.addEventListener('click', async () => {
   const r = await fetch('/commands/run', {
     method:'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ text, session: sessionId })
+    body: JSON.stringify({ text, session: window.currentSessionId })
   });
   const j = await r.json();
   // The backend returns summary + plan when a task matched; otherwise message
@@ -375,7 +551,7 @@ textInput.addEventListener('keypress', (e) => {
 });
 
 async function refreshUploads() {
-  const r = await fetch('/bucket/list?session=' + encodeURIComponent(sessionId));
+  const r = await fetch('/bucket/list?session=' + encodeURIComponent(window.currentSessionId));
   const j = await r.json();
   uploadsList.innerHTML = '';
   j.files.forEach(name => {
@@ -390,7 +566,7 @@ async function refreshUploads() {
 }
 
 async function refreshOutputs() {
-  const r = await fetch('/outputs/list?session=' + encodeURIComponent(sessionId));
+  const r = await fetch('/outputs/list?session=' + encodeURIComponent(window.currentSessionId));
   const j = await r.json();
   outputsList.innerHTML = '';
   j.files.forEach(name => {
@@ -413,7 +589,7 @@ buildBtn.addEventListener('click', async () => {
   const r = await fetch('/export/build_zip', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ intent: lastIntent, plan: lastPlan, outputs: ['dxf','pdf','csv'], session: sessionId })
+    body: JSON.stringify({ intent: lastIntent, plan: lastPlan, outputs: ['dxf','pdf','csv'], session: window.currentSessionId })
   });
   const j = await r.json();
   if (j.zip) {
