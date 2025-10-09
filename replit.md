@@ -140,6 +140,11 @@ AI response style: Short and brief by default, only providing details when promp
 - Extracts 4 parameters per circuit: Description, Load, Breaker Poles (1/2/3), Breaker Amps (NEC standard sizes)
 - Circuit layout: Odd circuits in columns A-F, even circuits in columns J-O, starting at row 12 (row 11 = headers)
 - Template-aware Excel population with odd/even circuit layout
+- **Dynamic Template Parameter Extraction**: System reads Excel template at task start
+  - Extracts parameter labels from A2-A9 (left side) and N2-N9 (right side)
+  - Shows user what fields are required (e.g., "Template requires: VOLTAGE, PHASE, WIRE...")
+  - Values are populated in B2-B9 (left values) and O2-O9 (right values)
+  - Supports custom user-uploaded templates with different field configurations
 - **AI Chat Completion**: AI extracts ALL panel parameters from text/voice input:
   - Panel name (e.g., "panel name is PP-TEST1" → extracts "PP-TEST1")
   - Number of circuits (e.g., "42 circuits" → extracts 42)
