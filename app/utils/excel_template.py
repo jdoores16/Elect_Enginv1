@@ -153,9 +153,22 @@ def apply_template_to_data(
                 for label_col, value_col in label_value_columns:
                     # Read labels from rows 2-9 and populate values
                     for row_num in range(2, 10):
+                        # Get label from the specified column, handling merged cells
                         label_cell = ws.cell(row=row_num, column=label_col)
-                        if label_cell.value:
-                            label = str(label_cell.value).lower().strip().rstrip(':')
+                        label_value = label_cell.value
+                        
+                        # If cell is None, check if it's part of a merged range
+                        if label_value is None:
+                            # Check all merged cell ranges to find if this cell is part of one
+                            for merged_range in ws.merged_cells.ranges:
+                                if label_cell.coordinate in merged_range:
+                                    # Get the top-left cell of the merged range which holds the value
+                                    top_left_cell = ws.cell(merged_range.min_row, merged_range.min_col)
+                                    label_value = top_left_cell.value
+                                    break
+                        
+                        if label_value:
+                            label = str(label_value).lower().strip().rstrip(':')
                             
                             # Find matching spec key
                             matched_value = None
