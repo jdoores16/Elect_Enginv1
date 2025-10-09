@@ -172,11 +172,9 @@ def run_command(payload: dict):
                 
                 number_of_ckts = params.get("number_of_ckts")
                 if not number_of_ckts:
-                    template_params = params.get("template_parameters", [])
-                    params_msg = f" Template requires: {', '.join(template_params[:4])}..." if template_params else ""
                     return {
                         "summary": "Got it.",
-                        "message": f"How many circuits? (Please provide an even number between 18-84){params_msg}",
+                        "message": "How many circuits? (Please provide an even number between 18-84)",
                         "plan": {"task": task_type, "project": params.get("project", "Project"), **params},
                         "needs_input": "number_of_ckts"
                     }
@@ -187,12 +185,9 @@ def run_command(payload: dict):
                     else:
                         file_info = " Upload panel photos for better results."
                     
-                    template_params = params.get("template_parameters", [])
-                    param_info = f" Template parameters: {', '.join(template_params[:6])}..." if template_params else ""
-                    
                     return {
                         "summary": "Got it.",
-                        "message": f"Ready to build {number_of_ckts}-circuit panel schedule.{file_info}{param_info} Press Build when ready. (Say 'finished' when done)",
+                        "message": f"Ready to build {number_of_ckts}-circuit panel schedule.{file_info} Press Build when ready. (Say 'finished' when done)",
                         "plan": {"task": task_type, "project": params.get("project", "Project"), **params}
                     }
             
@@ -323,11 +318,9 @@ def run_command(payload: dict):
             number_of_ckts = params.get("number_of_ckts")
             
             if not number_of_ckts:
-                template_params = params.get("template_parameters", [])
-                params_msg = f" Template fields: {', '.join(template_params[:4])}..." if template_params else ""
                 return {
                     "summary": confirmation,
-                    "message": f"How many circuits? (Please provide an even number between 18-84){params_msg}",
+                    "message": "How many circuits? (Please provide an even number between 18-84)",
                     "plan": plan,
                     "needs_input": "number_of_ckts"
                 }
@@ -339,12 +332,9 @@ def run_command(payload: dict):
             else:
                 file_info = " Upload panel photos for better results."
             
-            template_params = params.get("template_parameters", [])
-            param_info = f" Template fields: {', '.join(template_params[:6])}..." if template_params else ""
-            
             return {
                 "summary": confirmation,
-                "message": f"Ready to build {number_of_ckts}-circuit panel schedule.{file_info}{param_info} Press Build when ready. (Say 'finished' to end your task)",
+                "message": f"Ready to build {number_of_ckts}-circuit panel schedule.{file_info} Press Build when ready. (Say 'finished' to end your task)",
                 "plan": plan
             }
         
