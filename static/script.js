@@ -96,6 +96,14 @@ class TabManager {
     if (this.tabs.length === 0) {
       this.createTab('home');
     }
+    
+    // Clear Home tab messages on initial load to show welcome screen
+    const homeTab = this.tabs.find(t => t.id === 'home');
+    if (homeTab && homeTab.messages.length > 0) {
+      homeTab.messages = [];
+      this.saveToStorage();
+    }
+    
     this.renderTabs();
   }
   
