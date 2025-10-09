@@ -678,6 +678,19 @@ sendBtn.addEventListener('click', async () => {
     }
   }
   
+  // Auto-close tab when task is finished (task: "none")
+  if (j.plan && j.plan.task === "none") {
+    const currentTab = tabManager.getActiveTab();
+    // Only close if this is NOT the home tab
+    if (currentTab && currentTab.id !== 'home') {
+      // Close this tab and switch to home
+      setTimeout(() => {
+        tabManager.closeTab(currentTab.id);
+        tabManager.switchToTab('home');
+      }, 1000); // Small delay so user sees the "finished" message
+    }
+  }
+  
   refreshOutputs();
 });
 
