@@ -7,11 +7,12 @@ The application provides a web-based interface with voice-to-text input, AI text
 ## AI Architecture
 
 **Persistent AI (Home Screen)**:
+- The true design engineer being trained and taught
 - Lives in the Home tab permanently
 - Learns, adapts, and grows from all interactions
 - Tracks templates, chat history, and learned workflows
 - Maintains long-term memory and knowledge
-- Responds to user queries in Home tab
+- Responds to user queries and performs any task in Home tab
 - **Copies itself** at current state when user starts a Task Build
 
 **Task Build System (Ephemeral Workspaces)**:
