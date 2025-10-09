@@ -12,8 +12,11 @@ The application provides a web-based interface with voice-to-text input, AI text
 - Tracks templates, chat history, and learned workflows
 - Maintains long-term memory and knowledge
 - Responds to user queries in Home tab
+- **Copies itself** at current state when user starts a Task Build
 
 **Task Build System (Ephemeral Workspaces)**:
+- Each Task Build starts with a **copy** of the Home AI's current knowledge
+- Works with snapshot of templates, workflows, and learned patterns
 - Task Builds are completely ephemeral - temporary workspaces with zero long-term storage
 - Chat conversations are NOT saved
 - Uploaded files are NOT saved  
