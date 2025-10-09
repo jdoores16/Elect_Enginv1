@@ -129,6 +129,10 @@ def cad_lighting_plan(req: PlanRequest):
 
 # ---- Voice/typed command dispatcher ----
 
+def _filter_plan_params(params: dict) -> dict:
+    """Remove internal state flags from parameters before including in plan response."""
+    return {k: v for k, v in params.items() if k not in ["pending_confirmation", "pending_finish", "prompt_count"]}
+
 @app.post("/commands/run")
 def run_command(payload: dict):
     text = (payload.get("text") or "").strip()
@@ -151,7 +155,18 @@ def run_command(payload: dict):
     if text_lower in ["yes", "y", "yeah", "yep", "sure", "ok", "okay"]:
         # User confirmed something - check what we're confirming
         active_task = get_active_task(session)
-        if active_task and active_task.get("parameters", {}).get("pending_confirmation"):
+        
+        # IMPORTANT: Check pending_finish FIRST (takes priority over pending_confirmation)
+        if active_task and active_task.get("parameters", {}).get("pending_finish"):
+            # User confirmed finishing the task
+            task_name = active_task["task_type"].replace("_", " ")
+            clear_task_state(session)
+            return {
+                "summary": "Got it.",
+                "message": f"{task_name.title()} finished.",
+                "plan": {"task": "none", "project": "Ready"}
+            }
+        elif active_task and active_task.get("parameters", {}).get("pending_confirmation"):
             # User is confirming to start the task
             params = active_task["parameters"]
             params.pop("pending_confirmation", None)
@@ -175,7 +190,7 @@ def run_command(payload: dict):
                     return {
                         "summary": "Got it.",
                         "message": "How many circuits? (Please provide an even number between 18-84)",
-                        "plan": {"task": task_type, "project": params.get("project", "Project"), **params},
+                        "plan": {"task": task_type, "project": params.get("project", "Project"), **_filter_plan_params(params)},
                         "needs_input": "number_of_ckts"
                     }
                 else:
@@ -188,22 +203,14 @@ def run_command(payload: dict):
                     return {
                         "summary": "Got it.",
                         "message": f"Ready to build {number_of_ckts}-circuit panel schedule.{file_info} Press Build when ready. (Say 'finished' when done)",
-                        "plan": {"task": task_type, "project": params.get("project", "Project"), **params}
+                        "plan": {"task": task_type, "project": params.get("project", "Project"), **_filter_plan_params(params)}
                     }
             
             # For other tasks, ready to go
             return {
                 "summary": "Got it.",
                 "message": f"Starting work on {task_name}. Press Build when ready. (Say 'finished' when done)",
-                "plan": {"task": task_type, "project": params.get("project", "Project"), **params}
-            }
-        elif active_task and active_task.get("parameters", {}).get("pending_finish"):
-            # User confirmed finishing the task
-            clear_task_state(session)
-            return {
-                "summary": "Got it.",
-                "message": "Task finished. What would you like to do next?",
-                "plan": {"task": "none", "project": "Ready"}
+                "plan": {"task": task_type, "project": params.get("project", "Project"), **_filter_plan_params(params)}
             }
         else:
             # Generic yes without context - treat as continue
@@ -232,7 +239,7 @@ def run_command(payload: dict):
             return {
                 "summary": "Got it.",
                 "message": f"Continuing work on {task_name}. What else do you need?",
-                "plan": {"task": task_type, "project": params.get("project", "Project"), **params}
+                "plan": {"task": task_type, "project": params.get("project", "Project"), **_filter_plan_params(params)}
             }
     
     # Check if user wants to finish the current task
@@ -251,7 +258,7 @@ def run_command(payload: dict):
             return {
                 "summary": "Got it.",
                 "message": f"Do you want to finish the {task_name}?",
-                "plan": {"task": task_type, "project": params.get("project", "Project"), **params},
+                "plan": {"task": task_type, "project": params.get("project", "Project"), **_filter_plan_params(params)},
                 "needs_finish_confirmation": True,
                 "task_name": task_name
             }
@@ -302,11 +309,11 @@ def run_command(payload: dict):
         # Save updated parameters
         update_task_parameters(session, params)
         
-        # Build the plan with updated parameters
+        # Build the plan with updated parameters (exclude internal state flags)
         plan = {
             "task": task_type,
             "project": params.get("project", "Project"),
-            **params
+            **_filter_plan_params(params)
         }
         
         # Build confirmation message
