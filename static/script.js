@@ -217,6 +217,8 @@ class TabManager {
     taskBuildBtn.onclick = () => {
       // Clear welcome screen and enable normal chat
       thread.innerHTML = '';
+      // AI prompts for task
+      addMsg('ai', 'What task would you like to build?');
       textInput.focus();
     };
     
