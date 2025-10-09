@@ -250,7 +250,7 @@ def run_command(payload: dict):
             
             return {
                 "summary": "Got it.",
-                "message": f"Do you want to finish the {task_name} task and start a new task?",
+                "message": f"Do you want to finish the {task_name}?",
                 "plan": {"task": task_type, "project": params.get("project", "Project"), **params},
                 "needs_finish_confirmation": True,
                 "task_name": task_name
