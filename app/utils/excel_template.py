@@ -53,6 +53,45 @@ def find_template(bucket_dir: Path, session_prefix: str = "") -> Optional[Path]:
     return None
 
 
+def extract_template_parameters(template_path: Path) -> List[str]:
+    """
+    Extract parameter names from template.
+    Reads labels from A2-A9 (left side) and N2-N9 (right side).
+    These labels indicate what values should be collected and placed in B2-B9 and O2-O9.
+    
+    Returns:
+        List of parameter label strings
+    """
+    try:
+        wb = openpyxl.load_workbook(template_path)
+        ws = wb.active
+        
+        parameters = []
+        
+        # Extract left side parameters from A2-A9
+        for row in range(2, 10):
+            cell = ws.cell(row=row, column=1)  # Column A
+            if cell.value:
+                param_name = str(cell.value).strip()
+                if param_name:
+                    parameters.append(param_name)
+        
+        # Extract right side parameters from N2-N9
+        for row in range(2, 10):
+            cell = ws.cell(row=row, column=14)  # Column N
+            if cell.value:
+                param_name = str(cell.value).strip()
+                if param_name:
+                    parameters.append(param_name)
+        
+        logger.info(f"Extracted {len(parameters)} parameter labels from template: {parameters}")
+        return parameters
+        
+    except Exception as e:
+        logger.error(f"Failed to extract parameters from template: {e}")
+        return []
+
+
 def read_template_structure(template_path: Path) -> Dict:
     """
     Read the structure of an Excel template.

@@ -12,6 +12,7 @@ from app.cad.power_plan import generate_power_plan_dxf
 from app.cad.lighting_plan import generate_lighting_plan_dxf
 from app.ai.llm import plan_from_prompt, summarize_intent
 from app.db import init_db, get_active_task, save_task_state, update_task_parameters, clear_task_state
+from app.utils.excel_template import find_template, extract_template_parameters
 
 ROOT = Path(__file__).resolve().parent.parent
 BUCKET = ROOT / "bucket"
@@ -159,13 +160,23 @@ def run_command(payload: dict):
             task_type = active_task["task_type"]
             task_name = task_type.replace("_", " ")
             
-            # For panel_schedule, check if we need number_of_ckts
+            # For panel_schedule, extract template parameters and check requirements
             if task_type == "panel_schedule":
+                # Extract template parameters if not already done
+                if "template_parameters" not in params:
+                    template_path = find_template(BUCKET, pref)
+                    if template_path:
+                        template_params = extract_template_parameters(template_path)
+                        params["template_parameters"] = template_params
+                        update_task_parameters(session, params)
+                
                 number_of_ckts = params.get("number_of_ckts")
                 if not number_of_ckts:
+                    template_params = params.get("template_parameters", [])
+                    params_msg = f" Template requires: {', '.join(template_params[:4])}..." if template_params else ""
                     return {
                         "summary": "Got it.",
-                        "message": "How many circuits? (Please provide an even number between 18-84)",
+                        "message": f"How many circuits? (Please provide an even number between 18-84){params_msg}",
                         "plan": {"task": task_type, "project": params.get("project", "Project"), **params},
                         "needs_input": "number_of_ckts"
                     }
@@ -176,9 +187,12 @@ def run_command(payload: dict):
                     else:
                         file_info = " Upload panel photos for better results."
                     
+                    template_params = params.get("template_parameters", [])
+                    param_info = f" Template parameters: {', '.join(template_params[:6])}..." if template_params else ""
+                    
                     return {
                         "summary": "Got it.",
-                        "message": f"Ready to build {number_of_ckts}-circuit panel schedule.{file_info} Press Build when ready. (Say 'finished' when done)",
+                        "message": f"Ready to build {number_of_ckts}-circuit panel schedule.{file_info}{param_info} Press Build when ready. (Say 'finished' when done)",
                         "plan": {"task": task_type, "project": params.get("project", "Project"), **params}
                     }
             
@@ -298,12 +312,22 @@ def run_command(payload: dict):
         
         # Check if we have all required parameters for panel_schedule
         if task_type == "panel_schedule":
+            # Ensure template parameters are extracted
+            if "template_parameters" not in params:
+                template_path = find_template(BUCKET, pref)
+                if template_path:
+                    template_params = extract_template_parameters(template_path)
+                    params["template_parameters"] = template_params
+                    update_task_parameters(session, params)
+            
             number_of_ckts = params.get("number_of_ckts")
             
             if not number_of_ckts:
+                template_params = params.get("template_parameters", [])
+                params_msg = f" Template fields: {', '.join(template_params[:4])}..." if template_params else ""
                 return {
                     "summary": confirmation,
-                    "message": "How many circuits? (Please provide an even number between 18-84)",
+                    "message": f"How many circuits? (Please provide an even number between 18-84){params_msg}",
                     "plan": plan,
                     "needs_input": "number_of_ckts"
                 }
@@ -315,9 +339,12 @@ def run_command(payload: dict):
             else:
                 file_info = " Upload panel photos for better results."
             
+            template_params = params.get("template_parameters", [])
+            param_info = f" Template fields: {', '.join(template_params[:6])}..." if template_params else ""
+            
             return {
                 "summary": confirmation,
-                "message": f"Ready to build {number_of_ckts}-circuit panel schedule.{file_info} Press Build when ready. (Say 'finished' to end your task)",
+                "message": f"Ready to build {number_of_ckts}-circuit panel schedule.{file_info}{param_info} Press Build when ready. (Say 'finished' to end your task)",
                 "plan": plan
             }
         
