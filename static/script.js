@@ -160,16 +160,97 @@ class TabManager {
       
       // Restore chat messages (with skipSave flag to prevent duplication)
       thread.innerHTML = '';
-      tab.messages.forEach(msg => {
-        const opts = msg.options || {};
-        opts.skipSave = true;  // Don't save replayed messages
-        addMsg(msg.role, msg.text, opts);
-      });
+      
+      // Show welcome screen for empty Home tab
+      if (tab.id === 'home' && tab.messages.length === 0) {
+        this.showWelcomeScreen();
+      } else {
+        tab.messages.forEach(msg => {
+          const opts = msg.options || {};
+          opts.skipSave = true;  // Don't save replayed messages
+          addMsg(msg.role, msg.text, opts);
+        });
+      }
       
       // Refresh file and output lists
       refreshUploads();
       refreshOutputs();
     }
+  }
+  
+  showWelcomeScreen() {
+    const welcomeDiv = document.createElement('div');
+    welcomeDiv.className = 'msg ai welcome-screen';
+    welcomeDiv.style.maxWidth = '100%';
+    welcomeDiv.style.textAlign = 'center';
+    
+    const message = document.createElement('div');
+    message.textContent = 'What can I build for you?';
+    message.style.fontSize = '18px';
+    message.style.marginBottom = '20px';
+    
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.display = 'flex';
+    buttonContainer.style.gap = '12px';
+    buttonContainer.style.justifyContent = 'center';
+    buttonContainer.style.flexWrap = 'wrap';
+    
+    // Task Build button (active)
+    const taskBuildBtn = document.createElement('button');
+    taskBuildBtn.textContent = 'Task Build';
+    taskBuildBtn.className = 'welcome-btn';
+    taskBuildBtn.style.padding = '12px 24px';
+    taskBuildBtn.style.fontSize = '16px';
+    taskBuildBtn.style.background = '#10b981';
+    taskBuildBtn.style.color = '#fff';
+    taskBuildBtn.style.border = 'none';
+    taskBuildBtn.style.borderRadius = '8px';
+    taskBuildBtn.style.cursor = 'pointer';
+    taskBuildBtn.onclick = () => {
+      // Clear welcome screen and enable normal chat
+      thread.innerHTML = '';
+      textInput.focus();
+    };
+    
+    // Create New Project Build button (disabled)
+    const newProjectBtn = document.createElement('button');
+    newProjectBtn.textContent = 'Create New Project Build';
+    newProjectBtn.className = 'welcome-btn';
+    newProjectBtn.style.padding = '12px 24px';
+    newProjectBtn.style.fontSize = '16px';
+    newProjectBtn.style.background = '#374151';
+    newProjectBtn.style.color = '#6b7280';
+    newProjectBtn.style.border = 'none';
+    newProjectBtn.style.borderRadius = '8px';
+    newProjectBtn.style.cursor = 'not-allowed';
+    newProjectBtn.style.opacity = '0.5';
+    newProjectBtn.onclick = () => {
+      alert('Coming soon!');
+    };
+    
+    // Open Project Build button (disabled)
+    const openProjectBtn = document.createElement('button');
+    openProjectBtn.textContent = 'Open Project Build';
+    openProjectBtn.className = 'welcome-btn';
+    openProjectBtn.style.padding = '12px 24px';
+    openProjectBtn.style.fontSize = '16px';
+    openProjectBtn.style.background = '#374151';
+    openProjectBtn.style.color = '#6b7280';
+    openProjectBtn.style.border = 'none';
+    openProjectBtn.style.borderRadius = '8px';
+    openProjectBtn.style.cursor = 'not-allowed';
+    openProjectBtn.style.opacity = '0.5';
+    openProjectBtn.onclick = () => {
+      alert('Coming soon!');
+    };
+    
+    buttonContainer.appendChild(taskBuildBtn);
+    buttonContainer.appendChild(newProjectBtn);
+    buttonContainer.appendChild(openProjectBtn);
+    
+    welcomeDiv.appendChild(message);
+    welcomeDiv.appendChild(buttonContainer);
+    thread.appendChild(welcomeDiv);
   }
   
   closeTab(tabId) {
