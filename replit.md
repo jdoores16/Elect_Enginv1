@@ -9,7 +9,8 @@ The application provides a web-based interface with voice-to-text input, AI text
 **Persistent AI (Home Screen)**:
 - Lives in the Home tab permanently
 - Learns, adapts, and grows from all interactions
-- Maintains long-term memory and workflow knowledge
+- Tracks templates, chat history, and learned workflows
+- Maintains long-term memory and knowledge
 - Responds to user queries in Home tab
 
 **Task Build System (Ephemeral Workspaces)**:
