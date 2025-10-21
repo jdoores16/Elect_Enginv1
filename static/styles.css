@@ -1,0 +1,41 @@
+
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, Segoe UI, Roboto, sans-serif; background: #0f1115; color: #e5e7eb; }
+.app { display: grid; grid-template-columns: 320px 1fr; height: 100vh; }
+.sidebar { background: #111827; padding: 16px; display:flex; flex-direction: column; gap:16px; border-right: 1px solid #1f2937; }
+.sidebar h1 { margin:0; font-size: 20px; }
+.dropzone { border: 2px dashed #374151; border-radius: 12px; padding: 24px; text-align: center; cursor: pointer; background:#0b1220; }
+.dropzone:hover { border-color: #6b7280; }
+.outputs { flex:1; overflow: auto; }
+.outputs h3 { margin: 12px 0; font-size: 14px; color:#9ca3af; }
+.outputs ul { list-style: none; padding:0; margin:0; display: grid; gap:8px; }
+.outputs li a { color:#93c5fd; text-decoration: none; }
+.build { background: #10b981; color:#06251e; border: none; padding: 12px; border-radius: 10px; font-weight: 700; cursor: pointer; }
+.build:hover { filter: brightness(1.1); }
+.chat { display:flex; flex-direction: column; height: 100vh; }
+.thread { flex:1; overflow:auto; padding: 20px; display:flex; flex-direction: column; gap: 12px; }
+.msg { padding: 12px 14px; border-radius: 12px; max-width: 70ch; line-height: 1.4; white-space: pre-wrap; }
+.msg.user { background:#1f2937; align-self: flex-end; }
+.msg.ai { background:#0b1220; border:1px solid #1f2937; align-self: flex-start; }
+.composer { display:flex; gap: 8px; padding: 12px; border-top: 1px solid #1f2937; }
+.composer input { flex:1; background:#111827; color:#e5e7eb; border:1px solid #374151; padding: 12px; border-radius: 10px; }
+.composer button { background:#1f2937; color:#e5e7eb; border:1px solid #374151; padding: 10px 12px; border-radius: 10px; cursor: pointer; }
+.composer button:hover { filter: brightness(1.1); }
+
+
+.checklist h3 { margin: 12px 0; font-size: 14px; color:#9ca3af; }
+.checklist ul { list-style: disc; margin: 0 0 0 18px; padding:0; color:#d1d5db; display: grid; gap:6px; }
+
+
+/* Background waveform canvas */
+#waves {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.22;
+  filter: blur(0px) saturate(1.1);
+  background: radial-gradient(1200px 800px at 70% 20%, rgba(16,185,129,0.06), transparent 60%),
+              radial-gradient(1000px 700px at 20% 80%, rgba(59,130,246,0.05), transparent 60%);
+}
+.app, .sidebar, .chat { position: relative; z-index: 1; }

@@ -1,0 +1,24 @@
+
+You are ChatGPT, acting as a software engineer with electrical engineering and PE experience. 
+I want you to generate a Replit-ready starter kit that helps me build an AI-powered engineer assistant. 
+
+The kit should:
+1. Include a drag-and-drop resource bucket where I can upload floor plans (DXF/DWG/PDF), equipment cut sheets, photos, and text notes.
+2. Provide a voice/typed command interface so I can ask for outputs like one-line diagrams, power plans, lighting plans, and Revit task packages.
+3. Generate deterministic DXF files using Python (with ezdxf) and structured JSON that can later be imported into Revit with Dynamo/pyRevit.
+4. Be packaged as a Replit project, with `.replit`, `replit.nix`, `requirements.txt`, and all app code in FastAPI.
+
+Enhancements for version 3:
+- Add clear beginner-friendly documentation (`docs/GET_STARTED.md`) that explains step by step how to run the kit on Replit and use it even if I have no coding experience.
+- Provide a checklist of required AI software and CAD/BIM tools (`docs/AI_SOFTWARE_CHECKLIST.md`).
+- Provide a roadmap (`docs/ROADMAP.md`) showing phases from MVP → client-ready outputs.
+- Include a self-contained HTML presentation (`docs/presentation.html`) with a slide-deck style overview of how to use the starter kit and the roadmap.
+
+Suggestions to make the kit even better:
+- Add starter symbol blocks and layer naming conventions so DXFs look closer to production drawings.
+- Integrate panel schedule CSV generation alongside the one-line diagram.
+- Add optional OCR and PDF parsing helpers to extract data from cut sheets and notes uploaded to the resource bucket.
+- Add a simple QA/QC pipeline (`app/utils/qaqc.py`) to check feeder ampacity, voltage drop, working clearances, etc., and return warnings in the UI.
+- Create a Revit import script example in Dynamo/pyRevit that consumes the exported JSON task package.
+
+Please generate this full starter kit as a downloadable zip file that I can upload to Replit, with all directories and code included.

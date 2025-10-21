@@ -1,0 +1,34 @@
+{
+  "project": "Sample Building",
+  "service_voltage": "480Y/277V",
+  "service_amperes": 2000,
+  "panels": [
+    {
+      "name": "MDS",
+      "voltage": "480Y/277V",
+      "bus_amperes": 1200
+    },
+    {
+      "name": "L1",
+      "voltage": "208Y/120V",
+      "bus_amperes": 400
+    }
+  ],
+  "loads": [
+    {
+      "name": "CHWP-1",
+      "kva": 50.0,
+      "panel": "MDS"
+    },
+    {
+      "name": "RTU-2",
+      "kva": 35.0,
+      "panel": "MDS"
+    },
+    {
+      "name": "REC-GEN",
+      "kva": 10.0,
+      "panel": "L1"
+    }
+  ]
+}

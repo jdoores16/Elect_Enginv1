@@ -1,0 +1,1 @@
+Place DXF symbol files here (e.g., receptacle.dxf, panel.dxf, 2x2_luminaire.dxf). Reference them in standards.symbols mapping.

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Design Engineer</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <canvas id="waves"></canvas>
+  <div class="app">
+    <aside class="sidebar">
+      <h1>AI Design Engineer</h1>
+      <div class="dropzone" id="dropzone">
+        <p>Drag &amp; drop reference files here<br/><span>or click to upload</span></p>
+        <input type="file" id="fileInput" multiple hidden/>
+      </div>
+      <div class="checklist"><h3>Review Checklist</h3><ul id="checklist"></ul></div>
+      <div class="outputs">
+        <h3>Outputs</h3>
+        <ul id="outputsList"></ul>
+      </div>
+      <button id="buildBtn" class="build">Build</button>
+    </aside>
+    <main class="chat">
+      <div id="thread" class="thread"></div>
+      <div class="composer">
+        <button id="micBtn" title="Hold to speak">🎙️</button>
+        <input id="textInput" placeholder="Describe what you want to design..."/>
+        <button id="sendBtn">Send</button>
+      </div>
+    </main>
+  </div>
+  <script src="/static/script.js"></script>
+  <audio id="ttsAudio" hidden></audio>
+</body>
+</html>
