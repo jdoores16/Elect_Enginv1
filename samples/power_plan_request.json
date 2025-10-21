@@ -1,0 +1,36 @@
+{
+  "project": "Sample Building",
+  "rooms": [
+    {
+      "name": "Lobby",
+      "x": 0,
+      "y": 0,
+      "w": 6,
+      "h": 4
+    },
+    {
+      "name": "Elec",
+      "x": 0,
+      "y": 4.2,
+      "w": 3,
+      "h": 2
+    }
+  ],
+  "devices": [
+    {
+      "tag": "REC-1",
+      "x": 1,
+      "y": 1
+    },
+    {
+      "tag": "REC-2",
+      "x": 2,
+      "y": 1.5
+    },
+    {
+      "tag": "PANEL-L1",
+      "x": 0.5,
+      "y": 4.8
+    }
+  ]
+}

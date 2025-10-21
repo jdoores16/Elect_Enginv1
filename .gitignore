@@ -1,0 +1,21 @@
+﻿# --- Python ---
+__pycache__/
+*.pyc
+
+# --- Virtual env ---
+.venv/
+venv/
+
+# --- OS junk ---
+.DS_Store
+
+# --- Secrets / local config ---
+.env
+.env.*
+.env.txt
+
+# --- Build / dist ---
+dist/
+out/
+bucket/
+outputs/
