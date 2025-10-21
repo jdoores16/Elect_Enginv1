@@ -1,0 +1,71 @@
+{
+  "version": "1.0.0",
+  "header": {
+    "panel_name_cell": "A1:O1",
+    "panel_name": "PANEL L1",
+    "left_params": [
+      {"name_cell": "A2", "value_cell": "B2", "name_text": "VOLTAGE", "value": "480/277V"},
+      {"name_cell": "A3", "value_cell": "B3", "name_text": "PHASE", "value": "3Ø"},
+      {"name_cell": "A4", "value_cell": "B4", "name_text": "WIRE", "value": "4W"},
+      {"name_cell": "A5", "value_cell": "B5", "name_text": "MAIN BUS AMPS", "value": "225A"},
+      {"name_cell": "A6", "value_cell": "B6", "name_text": "MAIN CIRCUIT BREAKER", "value": "250A"},
+      {"name_cell": "A7", "value_cell": "B7", "name_text": "MOUNTING", "value": "surface"},
+      {"name_cell": "A8", "value_cell": "B8", "name_text": "FEED", "value": "from MDP"},
+      {"name_cell": "A9", "value_cell": "B9", "name_text": "FEED-THRU LUGS", "value": "no"}
+    ],
+    "right_params": [
+      {"name_cell": "I2:N2", "value_cell": "O2", "name_text": "LOCATION", "value": "MECHANICAL ROOM"},
+      {"name_cell": "I3:N3", "value_cell": "O3", "name_text": "FED FROM", "value": "MDP-L1"},
+      {"name_cell": "I4:N4", "value_cell": "O4", "name_text": "UL LISTED EQUIPMENT SHORT CIRCUIT RATING", "value": "65KAIC"},
+      {"name_cell": "I5:N5", "value_cell": "O5", "name_text": "MAXIMUM AVAILABLE SHORT CIRCUIT CURRENT", "value": "42KA"},
+      {"name_cell": "I6:N6", "value_cell": "O6", "name_text": "PHASE CONDUCTOR", "value": "3#3/0 CU"},
+      {"name_cell": "I7:N7", "value_cell": "O7", "name_text": "NEUTRAL CONDUCTOR", "value": "1#3/0 CU"},
+      {"name_cell": "I8:N8", "value_cell": "O8", "name_text": "GROUND CONDUCTOR", "value": "1#3/0 CU"}
+    ],
+    "right_unused_value_cell": "O9",
+    "right_unused_value": null
+  },
+  "circuits": [
+    {
+      "ckt": 1,
+      "side": "odd",
+      "excel_row": 12,
+      "breaker_amps": 20,
+      "load_amps": 16,
+      "poles": 1,
+      "phA": true,
+      "description": "LIGHTING AND RECEPTACLE CIRCUIT FOR LAB AREA EAST WING"
+    },
+    {
+      "ckt": 2,
+      "side": "even",
+      "excel_row": 12,
+      "breaker_amps": 20,
+      "load_amps": 12,
+      "poles": 1,
+      "phB": true,
+      "description": "EXHAUST FAN EF-1"
+    },
+    {
+      "ckt": 3,
+      "side": "odd",
+      "excel_row": 13,
+      "breaker_amps": 30,
+      "load_amps": 24,
+      "poles": 2,
+      "phA": true,
+      "phB": true,
+      "description": "AIR HANDLER UNIT AHU-1"
+    },
+    {
+      "ckt": 4,
+      "side": "even",
+      "excel_row": 13,
+      "breaker_amps": 15,
+      "load_amps": 10,
+      "poles": 1,
+      "phC": true,
+      "description": "LIGHTING CONTROL PANEL FEED"
+    }
+  ]
+}

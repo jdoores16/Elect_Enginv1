@@ -1,0 +1,104 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI PE Assistant — Starter Roadmap</title>
+<style>
+  :root { --bg:#0f172a; --fg:#e5e7eb; --accent:#22d3ee; }
+  html,body { height:100%; margin:0; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); color: var(--fg); }
+  .deck { max-width: 1100px; margin: 0 auto; padding: 3rem 1rem; }
+  section { margin: 2.5rem 0; padding: 2rem; border-radius: 12px; background: rgba(255,255,255,0.06); }
+  h1,h2 { margin: 0 0 .75rem 0; }
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.4rem; color: var(--accent); }
+  ul { line-height: 1.6; }
+  code, .kbd { background: rgba(255,255,255,0.1); padding: .1rem .4rem; border-radius: 6px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  a { color: var(--accent); }
+  .btn { display:inline-block; margin-top:.8rem; padding:.5rem .8rem; background: var(--accent); color:#0b1020; border-radius:8px; text-decoration:none; font-weight:600; }
+</style>
+</head>
+<body>
+<div class="deck">
+  <section>
+    <h1>AI PE Assistant — Starter Kit Roadmap</h1>
+    <p>For engineers new to programming &amp; AI. You’ll drag in files, speak commands, and download DXFs and a Revit task package.</p>
+    <a class="btn" href="../GET_STARTED.md" target="_blank">Open: Get Started</a>
+  </section>
+
+  <section>
+    <h2>What You Can Do Today</h2>
+    <ul>
+      <li>Drag floor plans, cut sheets, photos, notes into the <em>Resource Bucket</em>.</li>
+      <li>Speak/Type: <strong>“Create a one-line…”</strong>, <strong>“Generate a power plan…”</strong>, <strong>“Make a lighting plan…”</strong>.</li>
+      <li>Export a <strong>Revit task JSON</strong> for Dynamo/pyRevit on your desktop.</li>
+    </ul>
+  </section>
+
+  <section class="grid">
+    <div>
+      <h2>Step 1 — Run</h2>
+      <ul>
+        <li>Create a <span class="kbd">Python</span> Repl.</li>
+        <li>Upload &amp; extract the project ZIP.</li>
+        <li>Click <span class="kbd">Run</span>; open the web preview.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>Step 2 — Add Files</h2>
+      <ul>
+        <li>Drop <span class="kbd">DXF/DWG/PDF</span>, images, TXT/CSV into the bucket.</li>
+        <li>They appear in the file list.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>Step 3 — Command</h2>
+      <ul>
+        <li>Use <span class="kbd">🎙️ Hold to Speak</span> or type a command.</li>
+        <li>Start simple; iterate.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>Step 4 — Download</h2>
+      <ul>
+        <li>Find outputs under <span class="kbd">Outputs</span>.</li>
+        <li>Open DXFs in AutoCAD/BricsCAD to annotate &amp; plot to PDF.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>Software You’ll Use</h2>
+    <ul>
+      <li><strong>Replit</strong> for hosting the web app.</li>
+      <li><strong>AutoCAD/BricsCAD/DraftSight</strong> to edit &amp; PDF drawings.</li>
+      <li><strong>Revit + Dynamo/pyRevit</strong> to consume Revit task JSON.</li>
+      <li>Optional: <strong>LLM provider</strong> (OpenAI/Azure/OpenRouter) for planning/spec text.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Roadmap</h2>
+    <ul>
+      <li><strong>MVP:</strong> Bucket + voice + DXF + Revit JSON</li>
+      <li><strong>Planning:</strong> LLM turns resources → JSON plans</li>
+      <li><strong>Backgrounds:</strong> Place devices on real floor plans</li>
+      <li><strong>QA/QC &amp; Calcs:</strong> Ampacity, VD, SCCR sanity, schedules</li>
+      <li><strong>Revit:</strong> Desktop automation via Dynamo/pyRevit</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>PE Responsibilities</h2>
+    <ul>
+      <li>AI is a drafting co‑pilot, not a sealed deliverable generator.</li>
+      <li>Verify calculations and code compliance before stamping.</li>
+      <li>Keep an audit trail of inputs, prompts, and outputs.</li>
+    </ul>
+  </section>
+</div>
+</body>
+</html>
