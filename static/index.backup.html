@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI PE Assistant</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header>
+    <h1>AI PE Assistant</h1>
+    <p>Drop resources below, then use your voice to ask for drawings/specs/calcs.</p>
+  </header>
+
+  
+<main>
+  <section class="bucket">
+    <h2>Upload Project Standards</h2>
+    <form id="standardsForm">
+      <div><label>Standards config (JSON/YAML/CSV): <input type="file" id="stdConfig" accept=".json,.yaml,.yml,.csv"/></label></div>
+      <div><label>Titleblock file (DXF/DWG optional): <input type="file" id="stdTitleblock" accept=".dxf,.dwg"/></label></div>
+      <button type="submit">Activate Standards</button>
+    </form>
+    <h3>Active Standards</h3>
+    <pre id="stdActive" style="background:#fafafa;border:1px solid #eee;padding:.6rem;border-radius:6px;max-height:220px;overflow:auto;"></pre>
+  </section>
+<main>
+    <section class="bucket">
+      <h2>Resource Bucket</h2>
+      <div id="dropzone" class="dropzone">
+        <p><strong>Drag & Drop</strong> files here or click to select</p>
+        <input id="fileInput" type="file" multiple hidden />
+      </div>
+      <div class="bucket-list">
+        <h3>Files in Bucket</h3>
+        <ul id="bucketList"></ul>
+        <button id="clearBucket" class="danger">Clear Bucket</button>
+      </div>
+    </section>
+
+    <section class="commands">
+      <h2>Voice Commands</h2>
+      <button id="micBtn" class="mic">🎙️ Hold to Speak</button>
+      <textarea id="commandText" placeholder="…or type your command here"></textarea>
+      <button id="runBtn">Run Command</button>
+
+      <details>
+        <summary>Examples</summary>
+        <ul>
+          <li>Create a one-line diagram for Sample Building at 480Y/277V, 2000A service.</li>
+          <li>Generate a power plan for Lobby and Electrical Room using the uploaded floor plan.</li>
+          <li>Make a lighting plan with two 2x4 troffers in the conference room and a wall switch by the door.</li>
+          <li>Export a Revit task package for the current project.</li>
+        </ul>
+      </details>
+    
+        <div id="summaryBox" style="margin-top:.5rem;padding:.6rem;border:1px solid #eee;border-radius:6px;background:#fafafa;"></div>
+        </section>
+
+<section class="outputs">
+
+      <h2>Outputs</h2>
+      <ul id="outputs"></ul>
+    </section>
+  </main>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>

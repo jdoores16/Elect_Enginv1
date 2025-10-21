@@ -1,0 +1,16 @@
+{
+  "layers": {
+    "power_devices": "E-POWR-DEV",
+    "lighting": "E-LITE-FIXT",
+    "panels": "E-POWR-PNLS",
+    "annotations": "E-ANNO-TEXT",
+    "rooms": "E-ANNO-ROOM"
+  },
+  "text_style": "Standard",
+  "dim_style": "Standard",
+  "titleblock": "TitleblockA1.dxf",
+  "symbols": {
+    "receptacle": "symbols/REC_Simple.dxf",
+    "luminaire": "symbols/LUM_2x4.dxf"
+}
+}
