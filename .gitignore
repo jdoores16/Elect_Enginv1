@@ -1,0 +1,32 @@
+# Environment and secrets
+.env
+.env.*
+.env.local
+.env.txt
+
+# Local config & cache
+*.pyc
+__pycache__/
+*.log
+*.sqlite3
+/out/
+/bucket/
+/tmp/
+
+# ---- Virtual environments ----
+.venv/
+venv/
+env/
+ENV/
+
+# ---- Test / coverage / tooling ----
+.pytest_cache/
+.coverage
+.coverage.*
+cache/
+.tox/
+.nox/
+.mypy_cache/
+.pytype/
+.ruff_cache/
+.ipynb_checkpoints/
