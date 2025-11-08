@@ -624,7 +624,12 @@ dropzone.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', (e) => uploadFiles(e.target.files));
 dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('hover'); });
 dropzone.addEventListener('dragleave', () => dropzone.classList.remove('hover'));
-dropzone.addEventListener('drop', (e) => { e.preventDefault(); dropzone.classList.remove('hover'); uploadFiles(e.dataTransfer.files); });
+dropzone.addEventListener('drop', (e) => { 
+  e.preventDefault(); 
+  e.stopPropagation(); // Prevent event from bubbling to document.body
+  dropzone.classList.remove('hover'); 
+  uploadFiles(e.dataTransfer.files); 
+});
 
 // EXPANDED DROP ZONE: Make the entire window accept drag-and-drop
 let dragCounter = 0; // Track nested drag events
