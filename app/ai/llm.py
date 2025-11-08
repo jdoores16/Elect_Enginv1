@@ -186,44 +186,134 @@ def summarize_intent(user_text: str) -> str:
 def extract_circuit_from_text(user_text: str) -> Dict[str, Any]:
     """
     Extract circuit information from voice/text input.
-    Returns dict with keys: circuit_number, description, poles, breaker_amps, phase_amps
+    Returns dict with keys: circuit_number, description, poles, breaker_amps, load_amps
     Returns empty dict if no circuit data found.
+    
+    Example: "circuit 1 is a 20A/1P breaker and feeds and exhaust fan at 8A"
+    Returns: {'circuit_numbers': '1', 'poles': 1, 'breaker_amps': 20, 'load_amps': 8, 'description': 'EXHAUST FAN'}
     """
     import re
     
     circuit_data = {}
     text_lower = user_text.lower()
     
-    # Look for circuit number patterns: "circuit 1", "ckt 5", "circuits 1,3,5"
-    circuit_num_match = re.search(r'(?:circuit|ckt)s?\s+(\d+(?:,\s*\d+)*)', text_lower)
+    # Look for circuit number patterns: "circuit 1", "ckt 5", "circuits 1,3,5", "pole space 1"
+    circuit_num_match = re.search(r'(?:circuit|ckt|pole\s+space)s?\s+(\d+(?:,\s*\d+)*)', text_lower)
     if not circuit_num_match:
         return {}  # Not circuit-related input
     
     circuit_nums = circuit_num_match.group(1)
     circuit_data['circuit_numbers'] = circuit_nums
     
-    # Description: text before "is" or "are" and before pole/breaker info
-    desc_match = re.search(r'(?:is|are)\s+(?:for\s+)?([^,]+?)(?:\s+(?:and\s+)?(?:is|are)\s+|\s+with\s+|\s+\d+\s*pole)', text_lower)
+    # Combined breaker format: "20A/1P" or "30AF/2P"
+    combined_match = re.search(r'(\d+)\s*a[f]?/(\d+)\s*p', text_lower)
+    if combined_match:
+        circuit_data['breaker_amps'] = int(combined_match.group(1))
+        circuit_data['poles'] = int(combined_match.group(2))
+    else:
+        # Poles: "1 pole", "3-pole", "2P"
+        poles_match = re.search(r'(\d+)[\s-]*p(?:ole)?(?:s)?\b', text_lower)
+        if poles_match:
+            circuit_data['poles'] = int(poles_match.group(1))
+        
+        # Breaker amps: "20A breaker", "30 amp"
+        breaker_match = re.search(r'(?:breaker(?:\s+amp(?:s|ere)?)?|amp(?:s|ere)?)[\s:]*(\d+)\s*a?|(\d+)\s*a(?:mp)?(?:\s+breaker)', text_lower)
+        if breaker_match:
+            circuit_data['breaker_amps'] = int(breaker_match.group(1) or breaker_match.group(2))
+    
+    # Load amps: "at 8A", "feeds at 8 amps", "load is 10A"
+    load_match = re.search(r'(?:at|load(?:\s+is)?|draws?)[\s:]*(\d+(?:\.\d+)?)\s*a(?:mp(?:s|ere)?)?', text_lower)
+    if load_match:
+        circuit_data['load_amps'] = float(load_match.group(1))
+    else:
+        # Also check for "phase amp" patterns as fallback
+        phase_amps_match = re.search(r'(?:phase\s+amp(?:s)?(?:\s+is)?\s+|per\s+phase\s+)(\d+(?:\.\d+)?)', text_lower)
+        if phase_amps_match:
+            circuit_data['load_amps'] = float(phase_amps_match.group(1))
+    
+    # Description: extract from various patterns
+    # Pattern 1: "feeds [a/an/and] <description>" - explicitly consume "and" before description
+    desc_match = re.search(r'feeds?\s+(?:and\s+)?(?:a|an|the)?\s*([^,]+?)\s+(?:at|with|\d+)', text_lower)
     if desc_match:
         circuit_data['description'] = desc_match.group(1).strip().upper()
+    else:
+        # Pattern 2: "is [a] <description> [and/with]"
+        desc_match = re.search(r'is\s+(?:a|an|for)?\s*([^,]+?)\s+(?:and|with|at|\d+\s*a)', text_lower)
+        if desc_match:
+            desc_text = desc_match.group(1).strip()
+            # Remove breaker/pole info from description
+            desc_text = re.sub(r'\d+\s*a[f]?/\d+\s*p\s+breaker', '', desc_text, flags=re.IGNORECASE)
+            desc_text = re.sub(r'\d+[\s-]*p(?:ole)?\s+breaker', '', desc_text, flags=re.IGNORECASE)
+            desc_text = re.sub(r'\d+\s*a(?:mp)?\s+breaker', '', desc_text, flags=re.IGNORECASE)
+            desc_text = desc_text.strip()
+            if desc_text:
+                circuit_data['description'] = desc_text.upper()
     
-    # Poles: "1 pole", "3-pole", "2P"
-    poles_match = re.search(r'(\d+)[\s-]*p(?:ole)?', text_lower)
-    if poles_match:
-        circuit_data['poles'] = int(poles_match.group(1))
-    
-    # Breaker amps: "20A", "30 amp breaker"
-    breaker_match = re.search(r'(\d+)\s*a(?:mp)?(?:\s+breaker)?', text_lower)
-    if breaker_match:
-        circuit_data['breaker_amps'] = int(breaker_match.group(1))
-    
-    # Phase amps: "phase amp is 18", "18A per phase"
-    phase_amps_match = re.search(r'(?:phase\s+amp(?:s)?(?:\s+is)?\s+|per\s+phase\s+)(\d+)', text_lower)
-    if phase_amps_match:
-        circuit_data['phase_amps'] = int(phase_amps_match.group(1))
-    
-    logger.info(f"Extracted circuit data: {circuit_data}")
+    logger.info(f"Extracted circuit data from regex: {circuit_data}")
     return circuit_data
+
+
+def extract_circuit_from_text_llm(user_text: str) -> Dict[str, Any]:
+    """
+    Use OpenAI LLM to extract circuit information from natural language.
+    More robust than regex for complex or conversational inputs.
+    
+    Returns dict with keys: circuit_numbers, description, poles, breaker_amps, load_amps
+    Returns empty dict if no circuit data found or if API key is not configured.
+    
+    Example: "circuit 1 is a 20A/1P breaker and feeds and exhaust fan at 8A"
+    Returns: {'circuit_numbers': '1', 'poles': 1, 'breaker_amps': 20, 'load_amps': 8, 'description': 'EXHAUST FAN'}
+    """
+    if not settings.OPENAI_API_KEY:
+        logger.info("OpenAI API key not configured. Skipping LLM circuit extraction.")
+        return {}
+    
+    try:
+        system_prompt = """You are a circuit data extraction assistant. Extract circuit information from user input and return STRICT JSON.
+
+Output format:
+{
+  "circuit_numbers": "comma-separated circuit numbers (e.g., '1' or '1,3,5')",
+  "poles": integer (1, 2, or 3),
+  "breaker_amps": float (breaker rating in amps),
+  "load_amps": float (actual load in amps),
+  "description": "brief uppercase description of load (e.g., 'EXHAUST FAN')"
+}
+
+Rules:
+- If no circuit mentioned, return {}
+- Extract all numeric values accurately
+- Description should be concise (2-4 words max)
+- Remove articles (a, an, the) and breaker info from description
+- load_amps should be the actual load, not breaker rating
+"""
+        
+        resp = _chat_with_retries(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text},
+            ],
+            model=DEFAULT_MODEL,
+            temperature=0.0,  # Deterministic for data extraction
+            max_tokens=150,
+            response_format={"type": "json_object"},
+        )
+        
+        if not resp.choices:
+            logger.warning("LLM returned no choices for circuit extraction.")
+            return {}
+        
+        content = (resp.choices[0].message.content or "").strip()
+        if not content:
+            return {}
+        
+        data = json.loads(content)
+        logger.info(f"Extracted circuit data from LLM: {data}")
+        return data
+        
+    except Exception as e:
+        logger.warning(f"LLM circuit extraction failed: {e.__class__.__name__}: {e}")
+        return {}
 
 
 def extract_panel_specs_from_text(user_text: str) -> Dict[str, str]:

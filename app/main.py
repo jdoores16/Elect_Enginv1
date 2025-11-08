@@ -491,8 +491,12 @@ def run_command(payload: dict):
         extracted_params = []
         
         # First, try to extract circuit information (circuit-level input)
-        from app.ai.llm import extract_circuit_from_text
+        from app.ai.llm import extract_circuit_from_text, extract_circuit_from_text_llm
         circuit_data = extract_circuit_from_text(text)
+        
+        # If regex extraction didn't find anything, try LLM-powered extraction
+        if not circuit_data:
+            circuit_data = extract_circuit_from_text_llm(text)
         
         if circuit_data:
             # This is circuit-level input - store it separately
@@ -508,7 +512,7 @@ def run_command(payload: dict):
                         'description': circuit_data.get('description', ''),
                         'poles': circuit_data.get('poles', 1),
                         'breaker_amps': circuit_data.get('breaker_amps', 0),
-                        'phase_amps': circuit_data.get('phase_amps', 0)
+                        'load_amps': circuit_data.get('load_amps', 0)
                     }
                     
                     # Build friendly acknowledgment
@@ -519,6 +523,8 @@ def run_command(payload: dict):
                         parts.append(f"{circuit_data['poles']}-pole")
                     if circuit_data.get('breaker_amps'):
                         parts.append(f"{circuit_data['breaker_amps']}A breaker")
+                    if circuit_data.get('load_amps'):
+                        parts.append(f"at {circuit_data['load_amps']}A")
                     
                     extracted_params.append(" ".join(parts))
         else:
