@@ -499,6 +499,22 @@ def run_command(payload: dict):
             circuit_data = extract_circuit_from_text_llm(text)
         
         if circuit_data:
+            # Validate pole count - reject circuits with more than 3 poles
+            poles_count = circuit_data.get('poles', 1)
+            if poles_count > 3:
+                # Build plan with current parameters for display
+                current_plan = {
+                    "task": task_type,
+                    "project": params.get("project", "Project"),
+                    **_filter_plan_params(params)
+                }
+                return {
+                    "summary": "Invalid circuit.",
+                    "message": "circuit not valid, 3 pole max",
+                    "plan": current_plan,
+                    "text_only": True  # Text only, no voice
+                }
+            
             # This is circuit-level input - store it separately
             if "circuits" not in params:
                 params["circuits"] = {}
@@ -514,7 +530,6 @@ def run_command(payload: dict):
             # - First pole space gets all data (breaker_amps, description, poles, load_amps)
             # - Continuation poles get same poles count but empty breaker_amps/description
             # - All poles maintain the poles count so downstream knows they're grouped
-            poles_count = circuit_data.get('poles', 1)
             
             for idx, pole_num in enumerate(pole_spaces):
                 if idx == 0:
