@@ -105,6 +105,58 @@ The system supports multi-format export: DXF to PDF (via Matplotlib), CSV/Excel 
 - `docs/OCR_IMPROVEMENTS.md`: Complete technical documentation
 - `tests/test_ocr_improvements.py`: Comprehensive test suite
 
+## Visual Detection Foundation (November 2025)
+
+**Foundation modules** for future computer vision enhancements to OCR:
+
+### Visual Breaker Detection
+- **Module**: `app/skills/visual_breaker_detection.py`
+- **Purpose**: Analyze physical breaker appearance to detect multi-pole configurations
+- **Capabilities**:
+  - Detect breaker regions using edge detection and contour analysis
+  - Identify handle ties (metal clips connecting breakers for 2-pole circuits)
+  - Detect continuous handles (single handle spanning 3 positions for 3-pole circuits)
+  - Group circuits into multi-pole configurations
+- **Status**: Foundation code in place; requires refinement for production use (K-means clustering for robust column grouping)
+
+### Visual Nameplate Detection
+- **Module**: `app/skills/visual_nameplate_detection.py`
+- **Purpose**: Extract structured nameplate data from table-like regions
+- **Capabilities**:
+  - Detect rectangular table regions using morphological operations
+  - Identify horizontal and vertical table lines
+  - Extract individual cells and OCR their contents
+  - Parse key-value pairs (voltage, phase, wire, panel amps, etc.)
+- **Status**: Foundation code in place; ready for integration testing
+
+### Integration Module
+- **Module**: `app/skills/ocr_visual_enhanced.py`
+- **Purpose**: Combine text OCR with visual detection pipelines
+- **Features**:
+  - Unified pipeline merging text OCR, visual breaker detection, and nameplate detection
+  - Smart merging: visual detection takes priority for structured data
+  - Graceful fallback: visual failures don't block text OCR
+- **Status**: Foundation code in place; currently uses text OCR as primary path
+
+## Excel Multi-Pole Circuit Rendering (November 2025)
+
+**Fixed**: Multi-pole circuits now maintain proper row and column integrity for electrical accuracy.
+
+### Correct Rendering Behavior
+- **Description/Breaker/Pole**: Written ONLY to the top row of multi-pole group
+- **Load Amps**: Each row writes load_amps ONLY to its designated phase column
+- **Row/Column Integrity**: Each circuit number maintains its phase assignment
+
+### Example: 2-Pole Circuit (Circuits 2/4)
+- **Row 12 (Circuit 2)**: Description, 40A breaker, 2-pole, load in Phase A only
+- **Row 13 (Circuit 4)**: "-", "-", "-", load in Phase B only
+- Result: Electrically accurate representation where each pole carries load on its designated phase
+
+### Implementation
+- **File**: `app/io/panel_excel.py`
+- **Function**: `write_excel_from_ir()`
+- **Logic**: Uses `_phase_slot_for_circuit()` to determine correct phase column for each circuit number
+
 # External Dependencies
 
 ## Third-Party Services

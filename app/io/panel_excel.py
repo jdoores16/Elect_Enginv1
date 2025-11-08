@@ -99,21 +99,10 @@ def write_excel_from_ir(
         ws[f"{cols['breaker']}{r}"].value = float(c.breaker_amps)
         ws[f"{cols['pole']}{r}"].value = int(poles)
         
-        # Write load amps to ALL energized phases for multi-pole circuits
-        # For 1-pole: write to the single phase slot based on circuit number
-        # For 2-pole or 3-pole: write to all energized phases (phA, phB, phC)
-        if poles == 1:
-            # Single pole - use standard phase slot logic
-            phase_slot = _phase_slot_for_circuit(c.ckt)
-            ws[f"{cols[phase_slot]}{r}"].value = float(c.load_amps)
-        else:
-            # Multi-pole - write same load to all energized phases
-            if c.phA:
-                ws[f"{cols['phaseA']}{r}"].value = float(c.load_amps)
-            if c.phB:
-                ws[f"{cols['phaseB']}{r}"].value = float(c.load_amps)
-            if c.phC:
-                ws[f"{cols['phaseC']}{r}"].value = float(c.load_amps)
+        # Write load amps to the phase slot for THIS circuit number
+        # Maintain row/column integrity: each circuit gets its own phase column
+        phase_slot = _phase_slot_for_circuit(c.ckt)
+        ws[f"{cols[phase_slot]}{r}"].value = float(c.load_amps)
 
         # Write continuation rows for multi-pole circuits (2-pole or 3-pole)
         for continuation_offset in range(1, poles):
