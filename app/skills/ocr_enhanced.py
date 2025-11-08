@@ -261,24 +261,28 @@ def extract_panel_specs_enhanced(lines: List[str]) -> OCRExtractionResult:
     return result
 
 
-def parse_circuits_with_confidence(lines: List[str], number_of_ckts: int = None) -> Tuple[List[Dict], float, List[int]]:
+def parse_circuits_with_confidence(lines: List[str], number_of_ckts: int = None, use_ai_fallback: bool = True) -> Tuple[List[Dict], float, List[int]]:
     """
     Parse circuits with confidence scoring.
+    Uses AI extraction as fallback when regex confidence is low.
+    
+    Args:
+        lines: OCR text lines
+        number_of_ckts: Number of circuits (optional)
+        use_ai_fallback: If True, use AI to enhance low-confidence extractions
+        
     Returns: (circuits, average_confidence, gap_circuit_numbers)
     """
     from app.skills.ocr_panel import parse_circuits_from_lines, CIRCUIT_RE
     
-    # Use existing circuit parser
     circuits = parse_circuits_from_lines(lines, number_of_ckts)
     
-    # Calculate confidence for each circuit
     found_count = 0
     missing_circuits = []
     
     for i, circuit in enumerate(circuits, start=1):
         if circuit.get('description') != 'MISSING':
             found_count += 1
-            # Add confidence based on completeness
             missing_fields = sum(1 for v in circuit.values() if v == 'MISSING')
             circuit['confidence'] = 1.0 - (missing_fields / len(circuit))
         else:
@@ -286,5 +290,24 @@ def parse_circuits_with_confidence(lines: List[str], number_of_ckts: int = None)
             missing_circuits.append(i)
     
     avg_confidence = found_count / len(circuits) if circuits else 0.0
+    
+    if use_ai_fallback and avg_confidence < 0.6:
+        logger.info(f"Regex confidence ({avg_confidence:.2f}) is low, attempting AI enhancement")
+        try:
+            from app.skills.ai_ocr_extraction import ai_extract_circuits, merge_regex_and_ai_results
+            
+            ai_circuits = ai_extract_circuits(lines)
+            
+            if ai_circuits:
+                circuits = merge_regex_and_ai_results(circuits, ai_circuits)
+                
+                found_count = sum(1 for c in circuits if c.get('description') != 'MISSING')
+                avg_confidence = found_count / len(circuits) if circuits else 0.0
+                
+                missing_circuits = [i for i, c in enumerate(circuits, start=1) if c.get('description') == 'MISSING']
+                
+                logger.info(f"After AI enhancement: confidence={avg_confidence:.2f}, found={found_count}/{len(circuits)}")
+        except Exception as e:
+            logger.warning(f"AI fallback failed: {e}")
     
     return circuits, avg_confidence, missing_circuits

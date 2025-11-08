@@ -1,6 +1,6 @@
 
 from pathlib import Path
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 import re
 import logging
 import pytesseract
@@ -9,12 +9,32 @@ import io
 
 logger = logging.getLogger(__name__)
 
-def ocr_image_to_lines(image_path: Path) -> List[str]:
+def ocr_image_to_lines(image_path: Path, use_preprocessing: bool = True, save_debug: bool = False) -> List[str]:
+    """
+    Extract text lines from an image using Tesseract OCR.
+    
+    Args:
+        image_path: Path to image file
+        use_preprocessing: If True, apply advanced image preprocessing for better accuracy
+        save_debug: If True, save preprocessing debug images
+        
+    Returns:
+        List of extracted text lines
+    """
     try:
-        img = Image.open(image_path)
-        # Convert to grayscale for better OCR
-        img = img.convert("L")
-        text = pytesseract.image_to_string(img)
+        if use_preprocessing:
+            from app.skills.image_preprocessing import preprocess_for_ocr
+            
+            img = preprocess_for_ocr(image_path, aggressive=False, save_debug=save_debug)
+            logger.info(f"Applied advanced preprocessing to {image_path.name}")
+        else:
+            img = Image.open(image_path)
+            img = img.convert("L")
+            logger.info(f"Using basic grayscale conversion for {image_path.name}")
+        
+        custom_config = r'--oem 3 --psm 6'
+        
+        text = pytesseract.image_to_string(img, config=custom_config)
         lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
         logger.info(f"OCR extracted {len(lines)} lines from {image_path.name}")
         return lines
