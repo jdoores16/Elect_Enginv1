@@ -185,47 +185,55 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
         if 'template' in f.filename.lower() and f.filename.lower().endswith(('.xlsx', '.xlsm')):
             template_detected = True
         
-        # Auto-trigger OCR for image files
+        # Auto-trigger visual-enhanced OCR for image files
         image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.gif']
         if any(f.filename.lower().endswith(ext) for ext in image_extensions):
             try:
-                from app.skills.ocr_enhanced import extract_panel_specs_enhanced
-                from app.skills.ocr_panel import ocr_image_to_lines, parse_circuits_from_lines
+                from app.skills.ocr_visual_enhanced import analyze_panel_image_visual_enhanced
                 
-                # Run OCR on the image
-                lines = ocr_image_to_lines(dest)
+                # Run visual-enhanced OCR (combines text OCR + visual breaker + visual nameplate)
+                visual_result = analyze_panel_image_visual_enhanced(
+                    str(dest),
+                    enable_preprocessing=True,
+                    debug=False  # Set to True to save debug images to /tmp/
+                )
                 
-                # Extract panel specs with confidence scoring
-                ocr_result = extract_panel_specs_enhanced(lines)
+                # Graceful degradation: warn but don't fail if visual detection has issues
+                if not visual_result.get('success'):
+                    logger.warning(f"Visual OCR had issues for {f.filename}: {visual_result.get('error')}")
+                    # Continue with whatever data was extracted
+                    if not visual_result.get('panel_specs') and not visual_result.get('circuits'):
+                        raise Exception(visual_result.get('error', 'Visual OCR failed completely'))
                 
                 # Build list of extracted parameters
                 extracted = []
-                for field_key, extraction in ocr_result.panel_specs.items():
-                    if extraction.value and extraction.value != "MISSING":
-                        extracted.append(f"{field_key}: {extraction.value}")
                 
-                # Also extract circuit data from the OCR text
+                # Add panel specs
+                panel_specs = visual_result.get('panel_specs', {})
+                for field_key, value in panel_specs.items():
+                    if value and value != "MISSING":
+                        extracted.append(f"{field_key}: {value}")
+                
+                # Also extract circuit data
                 active_task = get_active_task(session)
                 if active_task:
                     params = active_task["parameters"]
                     
-                    # Merge OCR panel specs into task state
+                    # Merge panel specs into task state
                     if "panel_specs" not in params:
                         params["panel_specs"] = {}
                     
-                    for field_key, extraction in ocr_result.panel_specs.items():
-                        if extraction.value and extraction.value != "MISSING":
-                            params["panel_specs"][field_key] = extraction.value
-                    
-                    # Extract circuits from the OCR text
-                    number_of_ckts = params.get("number_of_ckts", 42)  # Default to 42 if not specified
-                    circuits_list = parse_circuits_from_lines(lines, number_of_ckts)
+                    for field_key, value in panel_specs.items():
+                        if value and value != "MISSING":
+                            params["panel_specs"][field_key] = value
                     
                     # Store circuit data
                     if "circuits" not in params:
                         params["circuits"] = {}
                     
                     circuit_count = 0
+                    circuits_list = visual_result.get('circuits', [])
+                    
                     for circuit_info in circuits_list:
                         # Skip circuits with MISSING data
                         desc = circuit_info.get('description', 'MISSING')
@@ -235,13 +243,18 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
                         if desc != 'MISSING' or amps != 'MISSING':
                             circuit_num = circuit_info.get('number', '')
                             
+                            # Visual detection flag
+                            visual_detected = circuit_info.get('visual_pole_detection', False)
+                            detection_method = circuit_info.get('detection_method', '')
+                            
                             # Convert to the format used by the chat handler
                             params["circuits"][str(circuit_num)] = {
                                 'description': desc if desc != 'MISSING' else '',
                                 'breaker_amps': int(amps) if amps != 'MISSING' else 0,
                                 'poles': int(poles) if poles != 'MISSING' else 1,
                                 'load_amps': 0,  # OCR doesn't extract load_amps
-                                'is_continuation': False
+                                'is_continuation': False,
+                                'visual_pole_detection': visual_detected
                             }
                             circuit_count += 1
                             
@@ -250,29 +263,44 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
                             if desc != 'MISSING':
                                 parts.append(f"'{desc}'")
                             if poles != 'MISSING' and int(poles) > 1:
-                                parts.append(f"{poles}-pole")
+                                pole_suffix = f"{poles}-pole"
+                                if visual_detected:
+                                    pole_suffix += f" (visual: {detection_method})"
+                                parts.append(pole_suffix)
                             if amps != 'MISSING':
                                 parts.append(f"{amps}A")
                             extracted.append(" ".join(parts))
                     
                     if circuit_count > 0:
-                        logger.info(f"OCR extracted {circuit_count} circuits from {f.filename}")
+                        logger.info(f"Visual OCR extracted {circuit_count} circuits from {f.filename}")
+                    
+                    # Log visual detection results
+                    visual_breakers = visual_result.get('visual_breaker_detection', {})
+                    if visual_breakers.get('visual_detection_successful'):
+                        multipole_count = len(visual_breakers.get('multipole_groups', {}))
+                        logger.info(f"Visual breaker detection found {multipole_count} multi-pole groups")
+                    
+                    visual_nameplate = visual_result.get('visual_nameplate_detection', {})
+                    if visual_nameplate.get('nameplate_detected'):
+                        logger.info(f"Visual nameplate detected: {visual_nameplate.get('data', {})}")
                     
                     update_task_parameters(session, params)
-                    logger.info(f"OCR extracted and stored {len(extracted)} parameters from {f.filename}")
+                    logger.info(f"Visual OCR extracted and stored {len(extracted)} parameters from {f.filename}")
                 
                 if extracted:
                     ocr_results.append({
                         "filename": f.filename,
                         "parameters": extracted,
-                        "confidence": round(ocr_result.overall_confidence * 100, 1)
+                        "confidence": round(visual_result.get('confidence', 0) * 100, 1),
+                        "visual_breaker_detection": visual_breakers.get('visual_detection_successful', False),
+                        "visual_nameplate_detection": visual_nameplate.get('nameplate_detected', False)
                     })
                 
             except Exception as e:
-                logger.error(f"OCR processing failed for {f.filename}: {e}")
+                logger.error(f"Visual OCR processing failed for {f.filename}: {e}")
                 ocr_results.append({
                     "filename": f.filename,
-                    "error": f"OCR processing failed: {str(e)}"
+                    "error": f"Visual OCR processing failed: {str(e)}"
                 })
     
     response = {"saved": saved}
