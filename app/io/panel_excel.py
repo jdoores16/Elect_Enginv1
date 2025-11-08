@@ -118,18 +118,25 @@ def write_excel_from_ir(
         # Write continuation rows for multi-pole circuits (2-pole or 3-pole)
         for continuation_offset in range(1, poles):
             continuation_row = r + continuation_offset
+            continuation_circuit = c.ckt + (continuation_offset * 2)  # Next odd/even circuit
+            
             if continuation_row > 53:  # Don't exceed panel template bounds
                 break
             
-            # Write "-" for continuation rows
+            # Write "-" for description, breaker, and pole in continuation rows
             ws[f"{cols['desc']}{continuation_row}"].value = "-"
             ws[f"{cols['breaker']}{continuation_row}"].value = "-"
             ws[f"{cols['pole']}{continuation_row}"].value = "-"
             
-            # Write "-" to all phase columns for continuation rows
-            ws[f"{cols['phaseA']}{continuation_row}"].value = "-"
-            ws[f"{cols['phaseB']}{continuation_row}"].value = "-"
-            ws[f"{cols['phaseC']}{continuation_row}"].value = "-"
+            # For load_amps, maintain row/column integrity:
+            # Write load_amps to the correct phase column based on continuation circuit number
+            continuation_phase_slot = _phase_slot_for_circuit(continuation_circuit)
+            ws[f"{cols[continuation_phase_slot]}{continuation_row}"].value = float(c.load_amps)
+            
+            # Write "-" to the other phase columns
+            for phase in ["phaseA", "phaseB", "phaseC"]:
+                if phase != continuation_phase_slot:
+                    ws[f"{cols[phase]}{continuation_row}"].value = "-"
 
     # --- KVA formulas (once) ---
     if formulas:
