@@ -358,8 +358,8 @@ def extract_panel_specs_from_text(user_text: str) -> Dict[str, str]:
         specs['voltage'] = voltage_match.group(1).upper() + 'V'
         logger.info(f"Extracted voltage: {specs['voltage']}")
     
-    # Phase patterns: "3 phase", "single phase", "1-phase", "phase is 3", "phase: 3"
-    phase_match = re.search(r'(?:phase\s*(?:is|:)?\s*(\d+|single|three|one)|(\d+|single|three|one)[\s-]*phase)', text_lower)
+    # Phase patterns: "3 phase", "3ph", "3-ph", "single phase", "1-phase", "phase is 3", "phase: 3"
+    phase_match = re.search(r'(?:phase\s*(?:is|:)?\s*(\d+|single|three|one)|(\d+|single|three|one)[\s-]*(?:phase|ph)\b)', text_lower)
     if phase_match:
         phase_val = phase_match.group(1) or phase_match.group(2)
         if phase_val in ['three', '3']:
