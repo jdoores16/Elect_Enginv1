@@ -219,27 +219,40 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
                     
                     # Extract circuits from the OCR text
                     number_of_ckts = params.get("number_of_ckts", 42)  # Default to 42 if not specified
-                    circuits_data = parse_circuits_from_lines(lines, number_of_ckts)
+                    circuits_list = parse_circuits_from_lines(lines, number_of_ckts)
                     
                     # Store circuit data
                     if "circuits" not in params:
                         params["circuits"] = {}
                     
                     circuit_count = 0
-                    for circuit_num, circuit_info in circuits_data.items():
-                        # Skip empty circuits
-                        if circuit_info.get('description') or circuit_info.get('breaker_amps'):
-                            params["circuits"][str(circuit_num)] = circuit_info
+                    for circuit_info in circuits_list:
+                        # Skip circuits with MISSING data
+                        desc = circuit_info.get('description', 'MISSING')
+                        amps = circuit_info.get('breaker_amps', 'MISSING')
+                        poles = circuit_info.get('breaker_poles', 'MISSING')
+                        
+                        if desc != 'MISSING' or amps != 'MISSING':
+                            circuit_num = circuit_info.get('number', '')
+                            
+                            # Convert to the format used by the chat handler
+                            params["circuits"][str(circuit_num)] = {
+                                'description': desc if desc != 'MISSING' else '',
+                                'breaker_amps': int(amps) if amps != 'MISSING' else 0,
+                                'poles': int(poles) if poles != 'MISSING' else 1,
+                                'load_amps': 0,  # OCR doesn't extract load_amps
+                                'is_continuation': False
+                            }
                             circuit_count += 1
                             
                             # Add to extracted list for user feedback
                             parts = [f"circuit {circuit_num}"]
-                            if circuit_info.get('description'):
-                                parts.append(f"'{circuit_info['description']}'")
-                            if circuit_info.get('poles') and circuit_info.get('poles') > 1:
-                                parts.append(f"{circuit_info['poles']}-pole")
-                            if circuit_info.get('breaker_amps'):
-                                parts.append(f"{circuit_info['breaker_amps']}A")
+                            if desc != 'MISSING':
+                                parts.append(f"'{desc}'")
+                            if poles != 'MISSING' and int(poles) > 1:
+                                parts.append(f"{poles}-pole")
+                            if amps != 'MISSING':
+                                parts.append(f"{amps}A")
                             extracted.append(" ".join(parts))
                     
                     if circuit_count > 0:
