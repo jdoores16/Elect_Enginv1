@@ -190,7 +190,7 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
         if any(f.filename.lower().endswith(ext) for ext in image_extensions):
             try:
                 from app.skills.ocr_enhanced import extract_panel_specs_enhanced
-                from app.skills.ocr_panel import ocr_image_to_lines
+                from app.skills.ocr_panel import ocr_image_to_lines, parse_circuits_from_lines
                 
                 # Run OCR on the image
                 lines = ocr_image_to_lines(dest)
@@ -204,28 +204,56 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
                     if extraction.value and extraction.value != "MISSING":
                         extracted.append(f"{field_key}: {extraction.value}")
                 
+                # Also extract circuit data from the OCR text
+                active_task = get_active_task(session)
+                if active_task:
+                    params = active_task["parameters"]
+                    
+                    # Merge OCR panel specs into task state
+                    if "panel_specs" not in params:
+                        params["panel_specs"] = {}
+                    
+                    for field_key, extraction in ocr_result.panel_specs.items():
+                        if extraction.value and extraction.value != "MISSING":
+                            params["panel_specs"][field_key] = extraction.value
+                    
+                    # Extract circuits from the OCR text
+                    number_of_ckts = params.get("number_of_ckts", 42)  # Default to 42 if not specified
+                    circuits_data = parse_circuits_from_lines(lines, number_of_ckts)
+                    
+                    # Store circuit data
+                    if "circuits" not in params:
+                        params["circuits"] = {}
+                    
+                    circuit_count = 0
+                    for circuit_num, circuit_info in circuits_data.items():
+                        # Skip empty circuits
+                        if circuit_info.get('description') or circuit_info.get('breaker_amps'):
+                            params["circuits"][str(circuit_num)] = circuit_info
+                            circuit_count += 1
+                            
+                            # Add to extracted list for user feedback
+                            parts = [f"circuit {circuit_num}"]
+                            if circuit_info.get('description'):
+                                parts.append(f"'{circuit_info['description']}'")
+                            if circuit_info.get('poles') and circuit_info.get('poles') > 1:
+                                parts.append(f"{circuit_info['poles']}-pole")
+                            if circuit_info.get('breaker_amps'):
+                                parts.append(f"{circuit_info['breaker_amps']}A")
+                            extracted.append(" ".join(parts))
+                    
+                    if circuit_count > 0:
+                        logger.info(f"OCR extracted {circuit_count} circuits from {f.filename}")
+                    
+                    update_task_parameters(session, params)
+                    logger.info(f"OCR extracted and stored {len(extracted)} parameters from {f.filename}")
+                
                 if extracted:
                     ocr_results.append({
                         "filename": f.filename,
                         "parameters": extracted,
                         "confidence": round(ocr_result.overall_confidence * 100, 1)
                     })
-                    
-                    # Store OCR results in session state
-                    active_task = get_active_task(session)
-                    if active_task:
-                        params = active_task["parameters"]
-                        
-                        # Merge OCR panel specs into task state
-                        if "panel_specs" not in params:
-                            params["panel_specs"] = {}
-                        
-                        for field_key, extraction in ocr_result.panel_specs.items():
-                            if extraction.value and extraction.value != "MISSING":
-                                params["panel_specs"][field_key] = extraction.value
-                        
-                        update_task_parameters(session, params)
-                        logger.info(f"OCR extracted and stored {len(extracted)} parameters from {f.filename}")
                 
             except Exception as e:
                 logger.error(f"OCR processing failed for {f.filename}: {e}")
