@@ -186,11 +186,14 @@ def summarize_intent(user_text: str) -> str:
 def extract_circuit_from_text(user_text: str) -> Dict[str, Any]:
     """
     Extract circuit information from voice/text input.
-    Returns dict with keys: circuit_number, description, poles, breaker_amps, load_amps
+    Returns dict with keys: circuit_numbers, pole_spaces, description, poles, breaker_amps, load_amps
     Returns empty dict if no circuit data found.
     
     Example: "circuit 1 is a 20A/1P breaker and feeds and exhaust fan at 8A"
-    Returns: {'circuit_numbers': '1', 'poles': 1, 'breaker_amps': 20, 'load_amps': 8, 'description': 'EXHAUST FAN'}
+    Returns: {'circuit_numbers': '1', 'pole_spaces': [1], 'poles': 1, 'breaker_amps': 20, 'load_amps': 8, 'description': 'EXHAUST FAN'}
+    
+    Example: "circuit 3,5 is a 30A/2P circuit that feeds a cold water pump in the basement and the full load is 18A"
+    Returns: {'circuit_numbers': '3,5', 'pole_spaces': [3, 5], 'poles': 2, 'breaker_amps': 30, 'load_amps': 18, 'description': 'BASEMENT COLD WATER PUMP'}
     """
     import re
     
@@ -204,6 +207,10 @@ def extract_circuit_from_text(user_text: str) -> Dict[str, Any]:
     
     circuit_nums = circuit_num_match.group(1)
     circuit_data['circuit_numbers'] = circuit_nums
+    
+    # Parse pole spaces into a list of integers
+    pole_spaces = [int(n.strip()) for n in circuit_nums.split(',')]
+    circuit_data['pole_spaces'] = pole_spaces
     
     # Combined breaker format: "20A/1P" or "30AF/2P"
     combined_match = re.search(r'(\d+)\s*a[f]?/(\d+)\s*p', text_lower)
@@ -232,19 +239,23 @@ def extract_circuit_from_text(user_text: str) -> Dict[str, Any]:
             circuit_data['load_amps'] = float(phase_amps_match.group(1))
     
     # Description: extract from various patterns
-    # Pattern 1: "feeds [a/an/and] <description>" - explicitly consume "and" before description
-    desc_match = re.search(r'feeds?\s+(?:and\s+)?(?:a|an|the)?\s*([^,]+?)\s+(?:at|with|\d+)', text_lower)
+    # Pattern 1: "feeds [a] <description> in <location>" or "feeds [a] <description> at <load>"
+    desc_match = re.search(r'feeds?\s+(?:and\s+)?(?:a|an|the)?\s*(.+?)\s+(?:and\s+the\s+)?(?:full\s+)?(?:load|at|with|\d+)', text_lower)
     if desc_match:
-        circuit_data['description'] = desc_match.group(1).strip().upper()
+        desc_text = desc_match.group(1).strip()
+        # Clean up the description by removing location phrases at the end if they're verbose
+        # Keep "in <location>" if concise
+        desc_text = re.sub(r'\s+and\s+the\s+full\s+load\s+is.*$', '', desc_text)
+        circuit_data['description'] = desc_text.strip().upper()
     else:
         # Pattern 2: "is [a] <description> [and/with]"
         desc_match = re.search(r'is\s+(?:a|an|for)?\s*([^,]+?)\s+(?:and|with|at|\d+\s*a)', text_lower)
         if desc_match:
             desc_text = desc_match.group(1).strip()
             # Remove breaker/pole info from description
-            desc_text = re.sub(r'\d+\s*a[f]?/\d+\s*p\s+breaker', '', desc_text, flags=re.IGNORECASE)
-            desc_text = re.sub(r'\d+[\s-]*p(?:ole)?\s+breaker', '', desc_text, flags=re.IGNORECASE)
-            desc_text = re.sub(r'\d+\s*a(?:mp)?\s+breaker', '', desc_text, flags=re.IGNORECASE)
+            desc_text = re.sub(r'\d+\s*a[f]?/\d+\s*p\s+(?:breaker|circuit)', '', desc_text, flags=re.IGNORECASE)
+            desc_text = re.sub(r'\d+[\s-]*p(?:ole)?\s+(?:breaker|circuit)', '', desc_text, flags=re.IGNORECASE)
+            desc_text = re.sub(r'\d+\s*a(?:mp)?\s+(?:breaker|circuit)', '', desc_text, flags=re.IGNORECASE)
             desc_text = desc_text.strip()
             if desc_text:
                 circuit_data['description'] = desc_text.upper()
@@ -258,11 +269,14 @@ def extract_circuit_from_text_llm(user_text: str) -> Dict[str, Any]:
     Use OpenAI LLM to extract circuit information from natural language.
     More robust than regex for complex or conversational inputs.
     
-    Returns dict with keys: circuit_numbers, description, poles, breaker_amps, load_amps
+    Returns dict with keys: circuit_numbers, pole_spaces, description, poles, breaker_amps, load_amps
     Returns empty dict if no circuit data found or if API key is not configured.
     
     Example: "circuit 1 is a 20A/1P breaker and feeds and exhaust fan at 8A"
-    Returns: {'circuit_numbers': '1', 'poles': 1, 'breaker_amps': 20, 'load_amps': 8, 'description': 'EXHAUST FAN'}
+    Returns: {'circuit_numbers': '1', 'pole_spaces': [1], 'poles': 1, 'breaker_amps': 20, 'load_amps': 8, 'description': 'EXHAUST FAN'}
+    
+    Example: "circuit 3,5 is a 30A/2P circuit that feeds a cold water pump in the basement and the full load is 18A"
+    Returns: {'circuit_numbers': '3,5', 'pole_spaces': [3, 5], 'poles': 2, 'breaker_amps': 30, 'load_amps': 18, 'description': 'BASEMENT COLD WATER PUMP'}
     """
     if not settings.OPENAI_API_KEY:
         logger.info("OpenAI API key not configured. Skipping LLM circuit extraction.")
@@ -273,19 +287,23 @@ def extract_circuit_from_text_llm(user_text: str) -> Dict[str, Any]:
 
 Output format:
 {
-  "circuit_numbers": "comma-separated circuit numbers (e.g., '1' or '1,3,5')",
+  "circuit_numbers": "comma-separated circuit numbers (e.g., '1' or '3,5')",
+  "pole_spaces": [array of integers representing pole space numbers],
   "poles": integer (1, 2, or 3),
   "breaker_amps": float (breaker rating in amps),
   "load_amps": float (actual load in amps),
-  "description": "brief uppercase description of load (e.g., 'EXHAUST FAN')"
+  "description": "brief uppercase description of load including location if mentioned"
 }
 
 Rules:
 - If no circuit mentioned, return {}
+- circuit_numbers and pole_spaces represent the same thing - the physical pole space positions
+- For "circuit 3,5", both circuit_numbers="3,5" AND pole_spaces=[3, 5]
 - Extract all numeric values accurately
-- Description should be concise (2-4 words max)
-- Remove articles (a, an, the) and breaker info from description
+- Description should include location if mentioned (e.g., 'BASEMENT COLD WATER PUMP')
+- Remove articles (a, an, the) and breaker/circuit keywords from description
 - load_amps should be the actual load, not breaker rating
+- Keep descriptions concise but meaningful (max 39 characters)
 """
         
         resp = _chat_with_retries(

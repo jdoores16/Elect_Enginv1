@@ -503,30 +503,58 @@ def run_command(payload: dict):
             if "circuits" not in params:
                 params["circuits"] = {}
             
-            # Parse circuit numbers (can be comma-separated like "1,3,5")
-            circuit_nums = [n.strip() for n in circuit_data.get('circuit_numbers', '').split(',')]
+            # Use pole_spaces array if available, otherwise fall back to parsing circuit_numbers
+            pole_spaces = circuit_data.get('pole_spaces', [])
+            if not pole_spaces:
+                # Fallback: parse circuit_numbers string
+                circuit_nums = [n.strip() for n in circuit_data.get('circuit_numbers', '').split(',')]
+                pole_spaces = [int(n) for n in circuit_nums if n.isdigit()]
             
-            for ckt_num in circuit_nums:
-                if ckt_num:
-                    params["circuits"][ckt_num] = {
+            # For multi-pole circuits:
+            # - First pole space gets all data (breaker_amps, description, poles, load_amps)
+            # - Continuation poles get same poles count but empty breaker_amps/description
+            # - All poles maintain the poles count so downstream knows they're grouped
+            poles_count = circuit_data.get('poles', 1)
+            
+            for idx, pole_num in enumerate(pole_spaces):
+                if idx == 0:
+                    # First pole space - store all circuit data
+                    params["circuits"][str(pole_num)] = {
                         'description': circuit_data.get('description', ''),
-                        'poles': circuit_data.get('poles', 1),
+                        'poles': poles_count,
                         'breaker_amps': circuit_data.get('breaker_amps', 0),
-                        'load_amps': circuit_data.get('load_amps', 0)
+                        'load_amps': circuit_data.get('load_amps', 0),
+                        'is_continuation': False
                     }
+                else:
+                    # Continuation pole - keep poles count but clear breaker/description
+                    params["circuits"][str(pole_num)] = {
+                        'description': '',
+                        'poles': poles_count,  # Preserve grouping info
+                        'breaker_amps': 0,
+                        'load_amps': circuit_data.get('load_amps', 0),
+                        'is_continuation': True
+                    }
+            
+            # Build friendly acknowledgment (only for the first/main pole)
+            if pole_spaces:
+                main_pole = pole_spaces[0]
+                parts = []
+                if len(pole_spaces) > 1:
+                    parts.append(f"circuits {circuit_data.get('circuit_numbers', main_pole)}")
+                else:
+                    parts.append(f"circuit {main_pole}")
                     
-                    # Build friendly acknowledgment
-                    parts = [f"circuit {ckt_num}"]
-                    if circuit_data.get('description'):
-                        parts.append(f"'{circuit_data['description']}'")
-                    if circuit_data.get('poles'):
-                        parts.append(f"{circuit_data['poles']}-pole")
-                    if circuit_data.get('breaker_amps'):
-                        parts.append(f"{circuit_data['breaker_amps']}A breaker")
-                    if circuit_data.get('load_amps'):
-                        parts.append(f"at {circuit_data['load_amps']}A")
-                    
-                    extracted_params.append(" ".join(parts))
+                if circuit_data.get('description'):
+                    parts.append(f"'{circuit_data['description']}'")
+                if circuit_data.get('poles'):
+                    parts.append(f"{circuit_data['poles']}-pole")
+                if circuit_data.get('breaker_amps'):
+                    parts.append(f"{circuit_data['breaker_amps']}A breaker")
+                if circuit_data.get('load_amps'):
+                    parts.append(f"at {circuit_data['load_amps']}A")
+                
+                extracted_params.append(" ".join(parts))
         else:
             # Not circuit data - try to extract panel specs (voltage, phase, etc.)
             panel_specs_from_text = extract_panel_specs_from_text(text)
