@@ -1,8 +1,8 @@
 """
 Generate Panel Schedule Variable List Excel file.
 
-Creates a three-column spreadsheet listing all panel schedule
-variables, their current values, and confidence scores.
+Creates a four-column spreadsheet listing all panel schedule
+variables, their current values, confidence scores, and load types.
 """
 import logging
 from pathlib import Path
@@ -49,22 +49,28 @@ def generate_variable_list_excel(
     ws.column_dimensions['A'].width = 35
     ws.column_dimensions['B'].width = 40
     ws.column_dimensions['C'].width = 15
+    ws.column_dimensions['D'].width = 12
     
     ws['A1'] = "Variable Name"
     ws['B1'] = "Value"
     ws['C1'] = "Confidence"
+    ws['D1'] = "Load Type"
     ws['A1'].font = header_font_white
     ws['B1'].font = header_font_white
     ws['C1'].font = header_font_white
+    ws['D1'].font = header_font_white
     ws['A1'].fill = header_fill
     ws['B1'].fill = header_fill
     ws['C1'].fill = header_fill
+    ws['D1'].fill = header_fill
     ws['A1'].border = cell_border
     ws['B1'].border = cell_border
     ws['C1'].border = cell_border
+    ws['D1'].border = cell_border
     ws['A1'].alignment = Alignment(horizontal='center')
     ws['B1'].alignment = Alignment(horizontal='center')
     ws['C1'].alignment = Alignment(horizontal='center')
+    ws['D1'].alignment = Alignment(horizontal='center')
     
     row = 2
     
@@ -86,25 +92,28 @@ def generate_variable_list_excel(
     
     def add_section_header(title: str):
         nonlocal row
-        ws.merge_cells(f'A{row}:C{row}')
+        ws.merge_cells(f'A{row}:D{row}')
         ws[f'A{row}'] = title
         ws[f'A{row}'].font = section_font
         ws[f'A{row}'].fill = section_fill
         ws[f'A{row}'].border = cell_border
         ws[f'B{row}'].border = cell_border
         ws[f'C{row}'].border = cell_border
+        ws[f'D{row}'].border = cell_border
         row += 1
     
-    def add_variable(name: str, value: Any, param_key: Optional[str] = None):
+    def add_variable(name: str, value: Any, param_key: Optional[str] = None, load_type_value: Optional[str] = None):
         nonlocal row
         ws[f'A{row}'] = name
         ws[f'B{row}'] = str(value) if value is not None else ""
         ws[f'A{row}'].border = cell_border
         ws[f'B{row}'].border = cell_border
         ws[f'C{row}'].border = cell_border
+        ws[f'D{row}'].border = cell_border
         ws[f'A{row}'].alignment = Alignment(horizontal='left')
         ws[f'B{row}'].alignment = Alignment(horizontal='left')
         ws[f'C{row}'].alignment = Alignment(horizontal='center')
+        ws[f'D{row}'].alignment = Alignment(horizontal='center')
         
         if param_key and param_key in confidence_data:
             conf = confidence_data[param_key].get('effective_confidence', 0)
@@ -112,6 +121,8 @@ def generate_variable_list_excel(
             ws[f'C{row}'].fill = get_confidence_fill(conf)
         else:
             ws[f'C{row}'] = ""
+        
+        ws[f'D{row}'] = load_type_value if load_type_value else "NA"
         
         row += 1
     
@@ -150,9 +161,7 @@ def generate_variable_list_excel(
             add_variable(f"Pole Space {circuit_num} Breaker Amps", f"{breaker_amps}A" if breaker_amps else "", f"circuit_{circuit_num}_breaker")
             add_variable(f"Pole Space {circuit_num} Poles", f"{poles}P" if poles else "", f"circuit_{circuit_num}_poles")
             if load_amps:
-                add_variable(f"Pole Space {circuit_num} Load Amps", f"{load_amps}A", f"circuit_{circuit_num}_load")
-            if load_type:
-                add_variable(f"Pole Space {circuit_num} Load Type", load_type, f"circuit_{circuit_num}_load_type")
+                add_variable(f"Pole Space {circuit_num} Load Amps", f"{load_amps}A", f"circuit_{circuit_num}_load", load_type if load_type else None)
     
     ws.freeze_panes = 'A2'
     

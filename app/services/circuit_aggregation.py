@@ -332,6 +332,11 @@ class CircuitAggregationService:
                 poles = breaker.get('poles')
                 amps = breaker.get('amps')
                 desc = breaker.get('description')
+                breaker_load_type = breaker.get('load_type')
+                if breaker_load_type:
+                    breaker_load_type = str(breaker_load_type).upper().strip()
+                    if breaker_load_type not in ['LTG', 'RCP', 'MTR', 'C', 'NC']:
+                        breaker_load_type = None
                 
                 if not circuits_list:
                     continue
@@ -347,7 +352,9 @@ class CircuitAggregationService:
                         breaker_amps=amps,
                         amps_confidence=0.85,
                         poles=poles,
-                        poles_confidence=0.90
+                        poles_confidence=0.90,
+                        load_type=breaker_load_type,
+                        load_type_confidence=0.85
                     )
         
         return notifications
