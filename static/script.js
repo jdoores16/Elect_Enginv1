@@ -870,36 +870,18 @@ async function handleBuildClick() {
     }
   }
 
-  setBusy?.(true, "Running AI technical review…");
+  setBusy?.(true, "Generating outputs…");
 
   try {
+    // Run preflight in background (results saved to Word doc)
     const pf = await runPreflight(ir);
 
-    // Build readable report for outputs
-    const warnings = pf.warnings || [];
-    const items = pf.items || [];
-    const lines = [];
-
-    lines.push("AI Technical Review:");
-    for (const it of items) {
-      lines.push(`- [${it.pass ? "OK" : "X"}] ${it.check}${it.notes ? " — " + it.notes : ""}`);
-    }
-    if (warnings.length) {
-      lines.push("", "Warnings:");
-      for (const w of warnings) lines.push("- " + w);
-    }
-
-    // Show AI review in chat (text only)
-    addMsg("ai", lines.join("\n"), { text_only: true });
-
-    // Automatically proceed with build - add IR metadata
+    // Add IR metadata from preflight (no chat output)
     const enrichedIR = {
       ...ir,
       _kva_formulas: pf.formulas || {},
       _inferred_system: pf.system || "",
     };
-
-    setBusy?.(true, "Generating Excel, PDF, and review files…");
     
     // Call panel export endpoint - this saves files to task-specific output directory
     // AI review runs to generate Word doc, JSON, and TXT files
@@ -921,7 +903,7 @@ async function handleBuildClick() {
     await refreshOutputs();
     
     setBusy?.(false, "Build complete");
-    addMsg("ai", "Build complete. Excel, PDF, and AI review are in Outputs.", { text_only: true });
+    addMsg("ai", "Build complete.", { text_only: true });
     
   } catch (e) {
     console.error(e);
