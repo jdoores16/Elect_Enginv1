@@ -93,6 +93,56 @@ body { margin: 0; font-family: system-ui, Segoe UI, Roboto, sans-serif; backgrou
 .outputs ul::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
 .outputs ul::-webkit-scrollbar-thumb:hover { background: #4b5563; }
 .outputs li a { color:#93c5fd; text-decoration: none; }
+
+/* Individual output file items */
+.output-item {
+  background: #1f2937;
+  border-radius: 6px;
+  padding: 0;
+  transition: background 0.2s;
+}
+.output-item:hover {
+  background: #374151;
+}
+.output-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  text-decoration: none !important;
+  color: #93c5fd;
+}
+.file-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.download-btn {
+  font-size: 14px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+.output-item:hover .download-btn {
+  opacity: 1;
+}
+/* ZIP bundle highlight */
+.zip-item {
+  background: #064e3b;
+  border: 1px solid #10b981;
+}
+.zip-item:hover {
+  background: #065f46;
+}
+.zip-item .output-link {
+  color: #6ee7b7;
+}
+
 .build { background: #10b981; color:#06251e; border: none; padding: 12px; border-radius: 10px; font-weight: 700; cursor: pointer; }
 .build:hover { filter: brightness(1.1); }
 .chat { display:flex; flex-direction: column; height: 100vh; }

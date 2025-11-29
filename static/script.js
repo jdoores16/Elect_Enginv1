@@ -747,12 +747,32 @@ async function refreshOutputs() {
   const r = await fetch('/outputs/list?session=' + encodeURIComponent(window.currentSessionId));
   const j = await r.json();
   outputsList.innerHTML = '';
+  
+  // File type icons and labels
+  const fileInfo = {
+    '.xlsx': { icon: '📊', label: 'Excel' },
+    '.pdf': { icon: '📄', label: 'PDF' },
+    '.docx': { icon: '📝', label: 'Word' },
+    '.zip': { icon: '📦', label: 'ZIP Bundle' },
+    '.dxf': { icon: '📐', label: 'CAD' },
+    '.csv': { icon: '📋', label: 'CSV' },
+    '.txt': { icon: '📃', label: 'Text' },
+    '.json': { icon: '🔧', label: 'JSON' }
+  };
+  
   j.files.forEach(name => {
+    const ext = name.substring(name.lastIndexOf('.')).toLowerCase();
+    const info = fileInfo[ext] || { icon: '📁', label: 'File' };
+    
     const li = document.createElement('li');
+    li.className = 'output-item' + (ext === '.zip' ? ' zip-item' : '');
+    
     const a = document.createElement('a');
     a.href = '/out/' + name + '?session=' + encodeURIComponent(window.currentSessionId);
-    a.textContent = name;
-    a.download = name;  // Force download instead of navigation
+    a.download = name;
+    a.className = 'output-link';
+    a.innerHTML = `<span class="file-icon">${info.icon}</span><span class="file-name">${name}</span><span class="download-btn">⬇️</span>`;
+    
     li.appendChild(a);
     outputsList.appendChild(li);
   });
