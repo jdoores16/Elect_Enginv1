@@ -1284,6 +1284,16 @@ def export_build_zip(payload: dict):
         apply_template_to_data(circuits, panel_name, template, OUT / xlsx_name, panel_specs)
         generated.append(xlsx_name)
         
+        # Generate PDF copy of panel schedule (exact copy using LibreOffice)
+        from app.export.pdf import export_pdf_from_excel
+        pdf_name = _short_filename('panel_schedule', 'pdf', session)
+        try:
+            export_pdf_from_excel(str(OUT / xlsx_name), str(OUT / pdf_name))
+            generated.append(pdf_name)
+            logger.info(f"Generated panel schedule PDF: {pdf_name}")
+        except Exception as e:
+            logger.warning(f"Could not generate panel schedule PDF: {e}")
+        
         # Generate Variable List Excel with confidence data
         from app.io.variable_list_excel import generate_variable_list_excel
         from app.services.circuit_aggregation import panel_parameter_store, circuit_aggregation_service
