@@ -163,6 +163,10 @@ class CircuitRecord(BaseModel):
     phB: Optional[bool] = None
     phC: Optional[bool] = None
     description: Optional[str] = None
+    load_type: Optional[Literal["LTG", "RCP", "MTR", "C", "NC"]] = Field(
+        None, 
+        description="Load type: LTG=Lighting, RCP=Receptacle, MTR=Motor, C=Continuous, NC=Non-Continuous"
+    )
 
     @field_validator("ckt")
     @classmethod

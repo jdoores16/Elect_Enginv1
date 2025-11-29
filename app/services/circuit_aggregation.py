@@ -64,6 +64,8 @@ class CircuitObservation:
     poles_confidence: float = 0.0
     load_amps: Optional[float] = None
     load_confidence: float = 0.0
+    load_type: Optional[str] = None  # LTG, RCP, MTR, C, NC
+    load_type_confidence: float = 0.0
 
 
 @dataclass
@@ -84,6 +86,7 @@ class ResolvedCircuit:
     breaker_amps: ResolvedField
     poles: ResolvedField
     load_amps: ResolvedField
+    load_type: ResolvedField = field(default_factory=lambda: ResolvedField(None, 0.0, []))
     observations_count: int = 0
     needs_review: bool = False
     
@@ -95,21 +98,25 @@ class ResolvedCircuit:
             'breaker_amps': self.breaker_amps.value or 0,
             'poles': self.poles.value or 1,
             'load_amps': self.load_amps.value or 0,
+            'load_type': self.load_type.value or '',
             'confidence': {
                 'description': round(self.description.confidence, 2),
                 'breaker_amps': round(self.breaker_amps.confidence, 2),
                 'poles': round(self.poles.confidence, 2),
+                'load_type': round(self.load_type.confidence, 2),
                 'overall': round(self._overall_confidence(), 2)
             },
             'sources': list(set(
                 self.description.sources + 
                 self.breaker_amps.sources + 
-                self.poles.sources
+                self.poles.sources +
+                self.load_type.sources
             )),
             'has_conflicts': any([
                 self.description.has_conflict,
                 self.breaker_amps.has_conflict,
-                self.poles.has_conflict
+                self.poles.has_conflict,
+                self.load_type.has_conflict
             ]),
             'needs_review': self.needs_review,
             'observations_count': self.observations_count
@@ -124,6 +131,8 @@ class ResolvedCircuit:
             confidences.append(self.breaker_amps.confidence)
         if self.poles.value:
             confidences.append(self.poles.confidence)
+        if self.load_type.value:
+            confidences.append(self.load_type.confidence)
         return sum(confidences) / len(confidences) if confidences else 0.0
 
 
@@ -160,7 +169,9 @@ class CircuitAggregationService:
         poles: Optional[int] = None,
         poles_confidence: float = 0.8,
         load_amps: Optional[float] = None,
-        load_confidence: float = 0.8
+        load_confidence: float = 0.8,
+        load_type: Optional[str] = None,
+        load_type_confidence: float = 0.8
     ) -> None:
         """Add a new observation from a source"""
         if task_id not in self._observations:
@@ -181,7 +192,9 @@ class CircuitAggregationService:
             poles=poles,
             poles_confidence=poles_confidence,
             load_amps=load_amps,
-            load_confidence=load_confidence
+            load_confidence=load_confidence,
+            load_type=load_type,
+            load_type_confidence=load_type_confidence
         )
         
         self._observations[task_id][circuit_num].append(observation)
@@ -361,17 +374,24 @@ class CircuitAggregationService:
              for obs in observations if obs.load_amps is not None]
         )
         
+        load_type = self._resolve_field(
+            [(obs.load_type, obs.load_type_confidence, obs.source_id, obs.method) 
+             for obs in observations if obs.load_type]
+        )
+        
         resolved = ResolvedCircuit(
             circuit_num=circuit_num,
             description=description,
             breaker_amps=breaker_amps,
             poles=poles,
             load_amps=load_amps,
+            load_type=load_type,
             observations_count=len(observations),
             needs_review=any([
                 description.has_conflict,
                 breaker_amps.has_conflict,
-                poles.has_conflict
+                poles.has_conflict,
+                load_type.has_conflict
             ])
         )
         
