@@ -6,6 +6,8 @@ Analyzes physical breaker appearance to detect:
 - Continuous handles (single handle spanning multiple positions)
 - Multi-pole breaker groupings (2-pole, 3-pole)
 - Breaker amperage ratings from handle labels
+
+Includes AI-powered vision analysis for accurate detection.
 """
 
 import cv2
@@ -13,8 +15,159 @@ import numpy as np
 from typing import List, Dict, Tuple, Optional
 import logging
 from pathlib import Path
+import base64
+import json
 
 logger = logging.getLogger(__name__)
+
+
+def analyze_panel_with_ai_vision(image_path: str, debug: bool = False) -> Dict:
+    """
+    Use OpenAI Vision API to analyze a panelboard image and detect breakers.
+    
+    This provides more accurate detection than traditional CV for:
+    - Breaker handle sizes (1-pole, 2-pole, 3-pole)
+    - Breaker amperage ratings from handle labels
+    - Overall panel configuration
+    
+    Args:
+        image_path: Path to panel image
+        debug: If True, log additional debug info
+        
+    Returns:
+        Dictionary with detected breakers and their configurations
+    """
+    from app.core.settings import settings
+    from openai import OpenAI
+    
+    try:
+        api_key = settings.effective_api_key
+        base_url = settings.effective_base_url
+    except RuntimeError:
+        logger.warning("OpenAI API key not configured, skipping AI vision analysis")
+        return {}
+    
+    try:
+        client = OpenAI(api_key=api_key, base_url=base_url)
+        
+        with open(image_path, "rb") as image_file:
+            base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+        
+        ext = Path(image_path).suffix.lower()
+        mime_type = "image/jpeg" if ext in [".jpg", ".jpeg"] else "image/png"
+        
+        system_prompt = """You are an expert electrical engineer analyzing a panelboard/breaker panel photo.
+Analyze the image and identify ALL circuit breakers visible in the panel.
+
+For each breaker, determine:
+1. Circuit position(s) - which circuit numbers it occupies (odd numbers on left column, even on right)
+2. Pole count - 1-pole (single narrow handle), 2-pole (wider handle spanning 2 spaces), or 3-pole (spans 3 spaces)
+3. Amperage rating - read the number on the breaker handle (15, 20, 30, 40, 50, 60, 70, 100, etc.)
+4. Column - left (odd circuits) or right (even circuits)
+
+Key visual indicators:
+- 1-pole breakers have a single narrow handle taking one position
+- 2-pole breakers have a WIDER handle (often with a tie bar) spanning 2 vertical positions
+- 3-pole breakers span 3 positions with an even wider/taller handle
+- Amperage is usually printed on the handle (20, 40, etc.)
+- Empty/blank positions have no breaker installed
+
+Return ONLY a valid JSON object in this exact format:
+{
+  "panel_info": {
+    "manufacturer": "detected manufacturer name or null",
+    "voltage": "detected voltage or null",
+    "total_spaces": number of circuit spaces detected
+  },
+  "breakers": [
+    {
+      "circuits": [1, 3],
+      "poles": 2,
+      "amps": 40,
+      "column": "left",
+      "position_start": 1,
+      "description": "2-pole 40A breaker"
+    }
+  ],
+  "empty_spaces": [13, 14, 15, 16]
+}"""
+
+        user_prompt = """Analyze this electrical panel image. Identify every circuit breaker:
+- Look at the left column (odd circuits: 1, 3, 5, 7...) and right column (even circuits: 2, 4, 6, 8...)
+- For each breaker, note if it's a single pole (1P), double pole (2P), or triple pole (3P)
+- Read the amperage rating printed on each breaker handle
+- Note any empty/unused circuit positions
+
+Return ONLY the JSON object with your findings."""
+
+        vision_model = "gpt-4o"
+        
+        response = client.chat.completions.create(
+            model=vision_model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": f"{system_prompt}\n\n{user_prompt}"},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{mime_type};base64,{base64_image}",
+                                "detail": "high"
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=2000,
+            temperature=0.1
+        )
+        
+        response_text = response.choices[0].message.content.strip()
+        
+        if response_text.startswith("```json"):
+            response_text = response_text[7:]
+        if response_text.startswith("```"):
+            response_text = response_text[3:]
+        if response_text.endswith("```"):
+            response_text = response_text[:-3]
+        response_text = response_text.strip()
+        
+        result = json.loads(response_text)
+        
+        logger.info(f"AI Vision detected {len(result.get('breakers', []))} breakers")
+        if debug:
+            logger.debug(f"AI Vision result: {json.dumps(result, indent=2)}")
+        
+        multipole_groups = {}
+        for breaker in result.get('breakers', []):
+            if breaker.get('poles', 1) > 1:
+                circuits = breaker.get('circuits', [])
+                if circuits:
+                    main_circuit = min(circuits)
+                    multipole_groups[main_circuit] = {
+                        'poles': breaker.get('poles'),
+                        'circuits': sorted(circuits),
+                        'amps': breaker.get('amps'),
+                        'detection_method': 'ai_vision'
+                    }
+        
+        return {
+            'ai_vision_success': True,
+            'panel_info': result.get('panel_info', {}),
+            'breakers': result.get('breakers', []),
+            'empty_spaces': result.get('empty_spaces', []),
+            'multipole_groups': multipole_groups,
+            'breaker_count': len(result.get('breakers', [])),
+            'visual_detection_successful': True
+        }
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse AI Vision response as JSON: {e}")
+        return {'ai_vision_success': False, 'error': 'Invalid JSON response'}
+    except Exception as e:
+        logger.error(f"AI Vision analysis failed: {e}", exc_info=True)
+        return {'ai_vision_success': False, 'error': str(e)}
 
 
 class BreakerRegion:
@@ -347,6 +500,9 @@ def analyze_panel_breakers(image_path: str, debug: bool = False) -> Dict:
     """
     Main entry point for visual breaker analysis.
     
+    Uses AI Vision analysis first for accurate detection, with fallback to
+    traditional computer vision if AI is not available.
+    
     Args:
         image_path: Path to panel image
         debug: If True, save debug visualizations
@@ -354,19 +510,30 @@ def analyze_panel_breakers(image_path: str, debug: bool = False) -> Dict:
     Returns:
         Dictionary with visual analysis results
     """
+    logger.info(f"Analyzing panel breakers in image: {image_path}")
+    
+    # Try AI Vision analysis first (more accurate)
+    logger.info("Attempting AI Vision analysis for breaker detection...")
+    ai_result = analyze_panel_with_ai_vision(image_path, debug=debug)
+    
+    if ai_result.get('ai_vision_success'):
+        logger.info(f"AI Vision analysis successful: {ai_result.get('breaker_count', 0)} breakers detected")
+        return ai_result
+    
+    # Fallback to traditional CV analysis
+    logger.info("Falling back to traditional CV analysis...")
+    
     image = cv2.imread(str(image_path))
     if image is None:
         logger.error(f"Failed to load image: {image_path}")
         return {}
     
-    logger.info(f"Analyzing panel breakers in image: {image_path}")
-    
     # Step 1: Detect breaker regions
     breaker_regions = detect_breaker_regions(image, debug=debug)
     
     if not breaker_regions:
-        logger.warning("No breaker regions detected")
-        return {}
+        logger.warning("No breaker regions detected with CV")
+        return {'breaker_count': 0, 'multipole_groups': {}, 'visual_detection_successful': False}
     
     # Step 2: Assign circuit numbers
     breaker_regions = assign_circuit_numbers(breaker_regions, image)
@@ -386,5 +553,5 @@ def analyze_panel_breakers(image_path: str, debug: bool = False) -> Dict:
         'visual_detection_successful': len(multipole_groups) > 0
     }
     
-    logger.info(f"Visual breaker analysis complete: {result}")
+    logger.info(f"CV breaker analysis complete: {result}")
     return result
