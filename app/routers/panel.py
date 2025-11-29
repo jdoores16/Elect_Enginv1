@@ -320,7 +320,7 @@ def export_zip(
             from app.services.circuit_aggregation import panel_parameter_store
             from app.io.variable_list_excel import generate_variable_list_excel
             
-            confidence_data = panel_parameter_store.get_all_confidence_data(session)
+            confidence_data = panel_parameter_store.get_all_with_confidence(session)
             if confidence_data:
                 varlist_filename = excel_real_path.with_suffix("").name + "_VARLIST.xlsx"
                 varlist_path = outputs_dir / varlist_filename

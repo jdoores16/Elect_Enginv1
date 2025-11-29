@@ -604,9 +604,23 @@ async function uploadFiles(files) {
       for (const result of j.ocr_results) {
         if (result.error) {
           addMsg('ai', `OCR failed for ${result.filename}: ${result.error}`, { text_only: true });
-        } else if (result.parameters && result.parameters.length > 0) {
-          const paramList = result.parameters.join(', ');
-          addMsg('ai', `Found ${result.parameters.length} parameters from ${result.filename}: ${paramList} (confidence: ${result.confidence}%)`, { text_only: true });
+        } else {
+          // Show panel parameters found
+          if (result.parameters && result.parameters.length > 0) {
+            const paramList = result.parameters.join(', ');
+            addMsg('ai', `Found ${result.parameters.length} panel parameters from ${result.filename}: ${paramList} (confidence: ${result.confidence}%)`, { text_only: true });
+          }
+          
+          // Show circuit/breaker data found
+          if (result.breaker_notifications && result.breaker_notifications.length > 0) {
+            const circuitInfo = result.breaker_notifications.join('\n');
+            addMsg('ai', `Found circuit data from ${result.filename}:\n${circuitInfo}`, { text_only: true });
+          }
+          
+          // Show aggregation summary if multiple sources
+          if (result.aggregation_summary && result.aggregation_summary.total_observations > result.aggregation_summary.total_circuits) {
+            addMsg('ai', `Data aggregated: ${result.aggregation_summary.total_observations} observations across ${result.aggregation_summary.total_circuits} circuits from ${result.aggregation_summary.sources?.length || 1} photo(s)`, { text_only: true });
+          }
         }
       }
     }
