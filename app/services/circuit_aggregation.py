@@ -264,33 +264,34 @@ class CircuitAggregationService:
             # Get new resolved data after adding
             new_resolved = self.get_resolved_circuit(task_id, circuit_num)
             
-            # Build notification (only if we got resolved data)
+            # Build notification ONLY if data actually changed
             if new_resolved is not None:
-                info_parts = []
-                confidence_parts = []
+                changed_parts = []
+                is_new_circuit = existing is None
                 
-                if new_resolved.poles.value:
-                    info_parts.append(f"{new_resolved.poles.value}-pole")
-                    existing_poles_conf = existing.poles.confidence if existing else 0
-                    if new_resolved.poles.confidence > existing_poles_conf:
-                        confidence_parts.append(f"poles: {int(new_resolved.poles.confidence * 100)}%")
+                # Check each field for changes
+                existing_poles = existing.poles.value if existing else None
+                existing_amps = existing.breaker_amps.value if existing else None
+                existing_desc = existing.description.value if existing else None
                 
-                if new_resolved.breaker_amps.value:
-                    info_parts.append(f"{new_resolved.breaker_amps.value}A")
-                    existing_amps_conf = existing.breaker_amps.confidence if existing else 0
-                    if new_resolved.breaker_amps.confidence > existing_amps_conf:
-                        confidence_parts.append(f"amps: {int(new_resolved.breaker_amps.confidence * 100)}%")
+                if new_resolved.poles.value and new_resolved.poles.value != existing_poles:
+                    changed_parts.append(f"{new_resolved.poles.value}-pole")
                 
-                if new_resolved.description.value:
-                    info_parts.append(f"'{new_resolved.description.value}'")
+                if new_resolved.breaker_amps.value and new_resolved.breaker_amps.value != existing_amps:
+                    changed_parts.append(f"{new_resolved.breaker_amps.value}A")
                 
-                if info_parts:
-                    notification = f"BREAKER INFO FOUND - Circuit {circuit_num}: {', '.join(info_parts)}"
+                if new_resolved.description.value and new_resolved.description.value != existing_desc:
+                    changed_parts.append(f"'{new_resolved.description.value}'")
+                
+                # Only notify if something actually changed
+                if changed_parts:
+                    if is_new_circuit:
+                        notification = f"BREAKER INFO FOUND - Circuit {circuit_num}: {', '.join(changed_parts)}"
+                    else:
+                        notification = f"BREAKER INFO UPDATED - Circuit {circuit_num}: {', '.join(changed_parts)}"
+                    
                     if new_resolved.observations_count > 1:
-                        notification += f" (combined from {new_resolved.observations_count} sources"
-                        if confidence_parts:
-                            notification += f", confidence: {', '.join(confidence_parts)}"
-                        notification += ")"
+                        notification += f" (combined from {new_resolved.observations_count} sources)"
                     elif detection_method == ExtractionMethod.AI_VISION:
                         notification += " (AI Vision)"
                     

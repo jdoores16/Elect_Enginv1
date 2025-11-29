@@ -278,22 +278,9 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
                             'has_conflicts': resolved.needs_review
                         }
                         circuit_count += 1
-                        
-                        # Add to extracted list for user feedback
-                        parts = [f"circuit {circuit_num}"]
-                        if resolved.description.value:
-                            parts.append(f"'{resolved.description.value}'")
-                        if resolved.poles.value and resolved.poles.value > 1:
-                            parts.append(f"{resolved.poles.value}-pole")
-                        if resolved.breaker_amps.value:
-                            parts.append(f"{resolved.breaker_amps.value}A")
-                        
-                        # Add confidence info if from multiple sources
-                        if resolved.observations_count > 1:
-                            overall_conf = resolved.to_dict()['confidence']['overall']
-                            parts.append(f"(confidence: {int(overall_conf * 100)}%)")
-                        
-                        extracted.append(" ".join(parts))
+                    
+                    # Note: Circuit changes are already in breaker_notifications
+                    # We don't duplicate by adding unchanged circuits to extracted list
                     
                     # Get aggregation summary for this task
                     agg_summary = circuit_aggregation_service.get_aggregation_summary(task_id)
