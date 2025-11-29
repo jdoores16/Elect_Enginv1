@@ -207,6 +207,7 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
                 
                 # Build list of extracted parameters
                 extracted = []
+                breaker_notifications = []  # Explicit breaker info found messages
                 
                 # Add panel specs
                 panel_specs = visual_result.get('panel_specs', {})
@@ -258,6 +259,22 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
                             }
                             circuit_count += 1
                             
+                            # Build "Breaker information found" notification for each circuit
+                            info_parts = []
+                            if poles != 'MISSING':
+                                info_parts.append(f"{poles}-pole")
+                            if amps != 'MISSING':
+                                info_parts.append(f"{amps}A")
+                            if desc != 'MISSING':
+                                info_parts.append(f"'{desc}'")
+                            
+                            if info_parts:
+                                notification = f"BREAKER INFO FOUND - Circuit {circuit_num}: {', '.join(info_parts)}"
+                                if visual_detected:
+                                    notification += f" (detected via {detection_method})"
+                                breaker_notifications.append(notification)
+                                logger.info(notification)
+                            
                             # Add to extracted list for user feedback
                             parts = [f"circuit {circuit_num}"]
                             if desc != 'MISSING':
@@ -274,11 +291,35 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
                     if circuit_count > 0:
                         logger.info(f"Visual OCR extracted {circuit_count} circuits from {f.filename}")
                     
-                    # Log visual detection results
+                    # Log visual detection results and add AI Vision breaker notifications
                     visual_breakers = visual_result.get('visual_breaker_detection', {})
-                    if visual_breakers.get('visual_detection_successful'):
+                    if visual_breakers.get('visual_detection_successful') or visual_breakers.get('ai_vision_success'):
                         multipole_count = len(visual_breakers.get('multipole_groups', {}))
                         logger.info(f"Visual breaker detection found {multipole_count} multi-pole groups")
+                        
+                        # Add notifications for AI Vision detected breakers
+                        ai_breakers = visual_breakers.get('breakers', [])
+                        for breaker in ai_breakers:
+                            circuits = breaker.get('circuits', [])
+                            poles = breaker.get('poles')  # Don't default - only notify if actually provided
+                            amps = breaker.get('amps')    # Don't default - only notify if actually provided
+                            desc = breaker.get('description')  # Don't default - only notify if actually provided
+                            
+                            circuit_str = ', '.join(map(str, circuits)) if circuits else 'unknown'
+                            info_parts = []
+                            if poles is not None:
+                                info_parts.append(f"{poles}-pole")
+                            if amps is not None:
+                                info_parts.append(f"{amps}A")
+                            if desc and desc.strip():
+                                info_parts.append(f"'{desc}'")
+                            
+                            # Only notify if we actually have breaker information
+                            if info_parts and circuits:
+                                notification = f"BREAKER INFO FOUND - Circuit(s) {circuit_str}: {', '.join(info_parts)} (AI Vision)"
+                                if notification not in breaker_notifications:
+                                    breaker_notifications.append(notification)
+                                    logger.info(notification)
                     
                     visual_nameplate = visual_result.get('visual_nameplate_detection', {})
                     if visual_nameplate.get('nameplate_detected'):
@@ -287,10 +328,11 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
                     update_task_parameters(session, params)
                     logger.info(f"Visual OCR extracted and stored {len(extracted)} parameters from {f.filename}")
                 
-                if extracted:
+                if extracted or breaker_notifications:
                     ocr_results.append({
                         "filename": f.filename,
                         "parameters": extracted,
+                        "breaker_notifications": breaker_notifications,
                         "confidence": round(visual_result.get('confidence', 0) * 100, 1),
                         "visual_breaker_detection": visual_breakers.get('visual_detection_successful', False),
                         "visual_nameplate_detection": visual_nameplate.get('nameplate_detected', False)
