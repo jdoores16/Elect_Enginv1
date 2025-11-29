@@ -1,19 +1,23 @@
 # app/ai/gpt_preflight.py
+# the newest OpenAI model is "gpt-5" which was released August 7, 2025.
+# do not change this unless explicitly requested by the user
 from __future__ import annotations
 import os, textwrap
 from typing import Dict, Any
 from openai import OpenAI
 from app.schemas.panel_ir import PanelScheduleIR
 from app.ai.checklist import build_checklist, summarize_for_gpt
+from app.core.settings import settings
 
 _MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-_API_KEY = os.getenv("OPENAI_API_KEY")
 
 def run_gpt_preflight(ir: PanelScheduleIR) -> Dict[str, Any]:
     """
     Sends electrical engineering data to OpenAI for technical review.
     Focus: System design, safety, code compliance, electrical calculations.
     NO formatting or aesthetic review.
+    
+    Uses Replit AI Integrations (no personal API key required).
     """
     checklist = build_checklist(ir)
     context = summarize_for_gpt(ir)
@@ -88,10 +92,14 @@ def run_gpt_preflight(ir: PanelScheduleIR) -> Dict[str, Any]:
       IMPORTANT: Set ok_to_build=false if ANY critical electrical safety issues exist.
     """).strip()
 
-    client = OpenAI(api_key=_API_KEY)
+    # Use Replit AI Integrations - no personal API key required
+    client = OpenAI(
+        api_key=settings.effective_api_key,
+        base_url=settings.effective_base_url
+    )
+    
     resp = client.chat.completions.create(
         model=_MODEL,
-        temperature=0,
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": user},

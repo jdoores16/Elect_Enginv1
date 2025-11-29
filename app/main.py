@@ -406,7 +406,28 @@ def out_file(name: str, session: str | None = None):
     path = outputs_dir / name
     if not path.exists():
         raise HTTPException(404, "Not found")
-    return FileResponse(str(path))
+    
+    # Set proper MIME types and headers to help browsers handle files correctly
+    # This can help reduce false positive virus warnings on Windows
+    ext = path.suffix.lower()
+    mime_types = {
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".pdf": "application/pdf",
+        ".zip": "application/zip",
+        ".dxf": "application/dxf",
+    }
+    media_type = mime_types.get(ext, "application/octet-stream")
+    
+    return FileResponse(
+        str(path),
+        media_type=media_type,
+        filename=path.name,
+        headers={
+            "Content-Disposition": f'attachment; filename="{path.name}"',
+            "X-Content-Type-Options": "nosniff",
+        }
+    )
 
 # ---- CAD endpoints (unchanged programmatic access) ----
 @app.post("/cad/one_line")
