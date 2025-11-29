@@ -209,11 +209,8 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
                 extracted = []
                 breaker_notifications = []  # Explicit breaker info found messages
                 
-                # Add panel specs
+                # Track panel specs - only notify about changes
                 panel_specs = visual_result.get('panel_specs', {})
-                for field_key, value in panel_specs.items():
-                    if value and value != "MISSING":
-                        extracted.append(f"{field_key}: {value}")
                 
                 # Also extract circuit data using aggregation service
                 active_task = get_active_task(session)
@@ -221,20 +218,29 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
                     params = active_task["parameters"]
                     task_id = params.get("task_id", session)
                     
-                    # Merge panel specs into task state
+                    # Merge panel specs into task state - only notify about changes
                     if "panel_specs" not in params:
                         params["panel_specs"] = {}
                     
+                    existing_specs = params["panel_specs"].copy()
+                    
                     for field_key, value in panel_specs.items():
                         if value and value != "MISSING":
-                            params["panel_specs"][field_key] = value
+                            old_value = existing_specs.get(field_key)
+                            if old_value != value:
+                                # Value changed - update and notify
+                                params["panel_specs"][field_key] = value
+                                if old_value:
+                                    extracted.append(f"{field_key} updated: {value}")
+                                else:
+                                    extracted.append(f"{field_key}: {value}")
                     
                     # If OCR found a panel_name, update the main panel_name parameter
                     # This overrides the auto-generated default
                     ocr_panel_name = panel_specs.get('panel_name')
                     if ocr_panel_name and ocr_panel_name != "MISSING":
                         old_name = params.get("panel_name", "")
-                        # Only log if it's actually changing from the auto-generated name
+                        # Only notify if it's actually changing
                         if old_name != ocr_panel_name:
                             logger.info(f"OCR detected panel_name: '{ocr_panel_name}' (replacing '{old_name}')")
                             params["panel_name"] = ocr_panel_name
@@ -662,9 +668,16 @@ def run_command(payload: dict):
             if panel_specs_from_text:
                 if "panel_specs" not in params:
                     params["panel_specs"] = {}
-                params["panel_specs"].update(panel_specs_from_text)
+                
+                # Only notify about values that actually changed
                 for key, value in panel_specs_from_text.items():
-                    extracted_params.append(f"{key} is {value}")
+                    old_value = params["panel_specs"].get(key)
+                    if old_value != value:
+                        params["panel_specs"][key] = value
+                        if old_value:
+                            extracted_params.append(f"{key} updated to {value}")
+                        else:
+                            extracted_params.append(f"{key} is {value}")
         
         # Update parameters from user response (allow overrides/corrections)
         if new_plan.get("number_of_ckts"):
