@@ -205,17 +205,20 @@ class ImagePreprocessor:
         return img_gray
 
 
-def preprocess_image(image_path: Path, debug: bool = False) -> Tuple[Image.Image, dict]:
+def preprocess_image(image_path, debug: bool = False) -> Tuple[Image.Image, dict]:
     """
     Backward-compatible wrapper for preprocess_for_ocr.
     
     Args:
-        image_path: Path to image file
+        image_path: Path to image file (str or Path)
         debug: If True, save intermediate processing steps for debugging
         
     Returns:
         Tuple of (Preprocessed PIL Image, metadata dict)
     """
+    if isinstance(image_path, str):
+        image_path = Path(image_path)
+    
     preprocessor = ImagePreprocessor(
         enable_deskew=True,
         enable_denoise=True,
