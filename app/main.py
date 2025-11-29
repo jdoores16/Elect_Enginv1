@@ -218,40 +218,67 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
                     params = active_task["parameters"]
                     task_id = params.get("task_id", session)
                     
-                    # Merge panel specs into task state - only notify about changes
-                    if "panel_specs" not in params:
-                        params["panel_specs"] = {}
-                    
-                    existing_specs = params["panel_specs"].copy()
-                    
-                    for field_key, value in panel_specs.items():
-                        if value and value != "MISSING":
-                            old_value = existing_specs.get(field_key)
-                            if old_value != value:
-                                # Value changed - update and notify
-                                params["panel_specs"][field_key] = value
-                                if old_value:
-                                    extracted.append(f"{field_key} updated: {value}")
-                                else:
-                                    extracted.append(f"{field_key}: {value}")
-                    
-                    # If OCR found a panel_name, update the main panel_name parameter
-                    # This overrides the auto-generated default
-                    ocr_panel_name = panel_specs.get('panel_name')
-                    if ocr_panel_name and ocr_panel_name != "MISSING":
-                        old_name = params.get("panel_name", "")
-                        # Only notify if it's actually changing
-                        if old_name != ocr_panel_name:
-                            logger.info(f"OCR detected panel_name: '{ocr_panel_name}' (replacing '{old_name}')")
-                            params["panel_name"] = ocr_panel_name
-                            extracted.append(f"panel name: {ocr_panel_name}")
-                    
-                    # Use aggregation service to combine data from multiple sources
+                    # Import confidence-aware services early
                     from app.services.circuit_aggregation import (
                         circuit_aggregation_service, 
+                        panel_parameter_store,
                         ExtractionMethod
                     )
                     
+                    # Use confidence-aware parameter store for panel specs
+                    # OCR text has base confidence 0.80, weighted by TEXT_OCR method (0.60)
+                    # This means OCR won't overwrite manual input (0.95) or AI vision (0.85)
+                    ocr_confidence = visual_result.get('confidence', 0.80)
+                    
+                    # Determine extraction method based on source
+                    param_method = ExtractionMethod.TEXT_OCR
+                    if visual_result.get('visual_nameplate_detection', {}).get('nameplate_detected'):
+                        param_method = ExtractionMethod.AI_VISION
+                        ocr_confidence = 0.85  # Higher confidence for visual nameplate
+                    
+                    # Update each panel spec through confidence-aware store
+                    if "panel_specs" not in params:
+                        params["panel_specs"] = {}
+                    
+                    for field_key, value in panel_specs.items():
+                        if value and value != "MISSING":
+                            was_updated, reason = panel_parameter_store.update_parameter(
+                                task_id=task_id,
+                                param_name=field_key,
+                                value=value,
+                                confidence=ocr_confidence,
+                                method=param_method,
+                                source_id=f.filename
+                            )
+                            
+                            if was_updated:
+                                # Value was accepted - update params and notify
+                                params["panel_specs"][field_key] = value
+                                extracted.append(f"{field_key}: {value}")
+                            else:
+                                # Value rejected due to lower confidence - log but don't notify
+                                logger.debug(f"Parameter {field_key}='{value}' rejected: {reason}")
+                    
+                    # Handle panel_name specially (also a top-level param)
+                    ocr_panel_name = panel_specs.get('panel_name')
+                    if ocr_panel_name and ocr_panel_name != "MISSING":
+                        was_updated, reason = panel_parameter_store.update_parameter(
+                            task_id=task_id,
+                            param_name='panel_name',
+                            value=ocr_panel_name,
+                            confidence=ocr_confidence,
+                            method=param_method,
+                            source_id=f.filename
+                        )
+                        
+                        if was_updated:
+                            old_name = params.get("panel_name", "")
+                            logger.info(f"OCR detected panel_name: '{ocr_panel_name}' (replacing '{old_name}')")
+                            params["panel_name"] = ocr_panel_name
+                            if "panel name" not in str(extracted):
+                                extracted.append(f"panel name: {ocr_panel_name}")
+                    
+                    # Process circuit data using aggregation service
                     circuits_list = visual_result.get('circuits', [])
                     visual_breakers = visual_result.get('visual_breaker_detection', {})
                     
@@ -690,10 +717,27 @@ def run_command(payload: dict):
                 if "panel_specs" not in params:
                     params["panel_specs"] = {}
                 
-                # Only notify about values that actually changed
+                # Import confidence-aware parameter store
+                from app.services.circuit_aggregation import (
+                    panel_parameter_store,
+                    ExtractionMethod
+                )
+                
+                task_id = params.get("task_id", session)
+                
+                # Manual/voice input has highest confidence (0.95 weight)
                 for key, value in panel_specs_from_text.items():
-                    old_value = params["panel_specs"].get(key)
-                    if old_value != value:
+                    was_updated, reason = panel_parameter_store.update_parameter(
+                        task_id=task_id,
+                        param_name=key,
+                        value=value,
+                        confidence=1.0,  # Full confidence for manual input
+                        method=ExtractionMethod.MANUAL,
+                        source_id="voice_input"
+                    )
+                    
+                    if was_updated:
+                        old_value = params["panel_specs"].get(key)
                         params["panel_specs"][key] = value
                         if old_value:
                             extracted_params.append(f"{key} updated to {value}")
@@ -717,11 +761,27 @@ def run_command(payload: dict):
         ))
         
         if panel_name_mentioned and new_plan.get("panel_name"):
-            old_value = params.get("panel_name")
+            # Import confidence-aware parameter store
+            from app.services.circuit_aggregation import (
+                panel_parameter_store,
+                ExtractionMethod
+            )
+            
+            task_id = params.get("task_id", session)
             new_value = new_plan["panel_name"]
-            if old_value != new_value:
-                # Delete old panel_name and update to new one
-                # Parameters remain associated with task_id, now labeled with new panel_name
+            
+            # Manual panel_name input has highest priority
+            was_updated, reason = panel_parameter_store.update_parameter(
+                task_id=task_id,
+                param_name='panel_name',
+                value=new_value,
+                confidence=1.0,  # Full confidence for manual input
+                method=ExtractionMethod.MANUAL,
+                source_id="voice_input"
+            )
+            
+            if was_updated:
+                old_value = params.get("panel_name")
                 if old_value:
                     logger.info(f"Panel name updated from '{old_value}' to '{new_value}' for task_id: {params.get('task_id')}")
                 
