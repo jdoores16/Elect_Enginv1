@@ -453,6 +453,10 @@ def out_file(name: str, session: str | None = None):
         headers={
             "Content-Disposition": f'attachment; filename="{path.name}"',
             "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "X-Download-Options": "noopen",
         }
     )
 
@@ -1349,12 +1353,17 @@ def export_build_zip(payload: dict):
     summary_path = _write_summary_docx(plan, OUT, session)
     generated.append(summary_path.name)
 
-    # Zip it all
-    zip_name = _short_filename('build', 'zip', session)
+    # Zip it all with standard compression to avoid antivirus false positives
+    # Use panel name in filename for clarity
+    safe_panel_name = "".join(c for c in str(plan.get("panel_name", "panel")) if c.isalnum() or c in "-_")[:20]
+    zip_name = f"{safe_panel_name}_schedule.zip"
     zip_path = OUT / zip_name
-    with _zipfile.ZipFile(zip_path, "w", _zipfile.ZIP_DEFLATED) as z:
+    
+    with _zipfile.ZipFile(zip_path, "w", _zipfile.ZIP_DEFLATED, compresslevel=6) as z:
         for name in generated:
-            z.write(OUT / name, arcname=name)
+            file_path = OUT / name
+            if file_path.exists():
+                z.write(file_path, arcname=name)
 
     return {"message": "Build package ready.", "zip": zip_name, "artifacts": generated}
 
