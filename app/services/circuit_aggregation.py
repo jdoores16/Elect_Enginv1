@@ -513,3 +513,187 @@ class CircuitAggregationService:
 
 # Global instance
 circuit_aggregation_service = CircuitAggregationService()
+
+
+@dataclass
+class ParameterValue:
+    """A stored parameter value with confidence tracking"""
+    value: Any
+    confidence: float
+    method: ExtractionMethod
+    source_id: str
+    timestamp: datetime = field(default_factory=datetime.now)
+    
+    def effective_confidence(self) -> float:
+        """Calculate effective confidence considering method weight"""
+        base_weight = METHOD_CONFIDENCE_WEIGHTS.get(self.method, 0.5)
+        return min(1.0, self.confidence * base_weight)
+
+
+class PanelParameterStore:
+    """
+    Confidence-aware storage for panel parameters (voltage, phase, wire, etc.).
+    
+    Parameters are only updated if the new confidence exceeds the existing confidence.
+    This prevents lower-quality sources (e.g., text OCR) from overwriting higher-quality
+    values (e.g., manual input or AI vision).
+    
+    Confidence weights:
+    - manual: 0.95
+    - AI vision: 0.85
+    - AI OCR fallback: 0.70
+    - text OCR: 0.60
+    """
+    
+    # Parameters that support confidence tracking
+    TRACKED_PARAMETERS = {
+        'voltage', 'phase', 'wire', 'main_bus_amps', 'main_breaker',
+        'mounting', 'feed', 'location', 'fed_from', 'panel_name',
+        'short_circuit_rating', 'feed_thru_lugs'
+    }
+    
+    def __init__(self):
+        # Per-task parameter storage: task_id -> param_name -> ParameterValue
+        self._store: Dict[str, Dict[str, ParameterValue]] = {}
+    
+    def get_parameter(self, task_id: str, param_name: str) -> Optional[ParameterValue]:
+        """Get the current stored value for a parameter"""
+        if task_id not in self._store:
+            return None
+        return self._store[task_id].get(param_name)
+    
+    def get_value(self, task_id: str, param_name: str) -> Optional[Any]:
+        """Get just the value for a parameter (convenience method)"""
+        param = self.get_parameter(task_id, param_name)
+        return param.value if param else None
+    
+    def update_parameter(
+        self,
+        task_id: str,
+        param_name: str,
+        value: Any,
+        confidence: float,
+        method: ExtractionMethod,
+        source_id: str = "unknown"
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Update a parameter only if the new confidence exceeds existing.
+        
+        Args:
+            task_id: The task identifier
+            param_name: Parameter name (voltage, phase, etc.)
+            value: The new value to set
+            confidence: Raw confidence (0.0 to 1.0)
+            method: Extraction method (determines weight)
+            source_id: Source identifier (filename, "manual", etc.)
+            
+        Returns:
+            Tuple of (was_updated, reason)
+            - was_updated: True if the value was updated
+            - reason: Explanation of why update was accepted or rejected
+        """
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return False, "Empty value ignored"
+        
+        if task_id not in self._store:
+            self._store[task_id] = {}
+        
+        # Calculate effective confidence
+        new_effective = min(1.0, confidence * METHOD_CONFIDENCE_WEIGHTS.get(method, 0.5))
+        
+        existing = self._store[task_id].get(param_name)
+        
+        if existing is None:
+            # No existing value - accept the new one
+            self._store[task_id][param_name] = ParameterValue(
+                value=value,
+                confidence=confidence,
+                method=method,
+                source_id=source_id
+            )
+            logger.info(
+                f"[{task_id}] Set {param_name}='{value}' "
+                f"(confidence={new_effective:.2f}, method={method.value}, source={source_id})"
+            )
+            return True, f"New parameter set with confidence {new_effective:.2f}"
+        
+        existing_effective = existing.effective_confidence()
+        
+        if new_effective > existing_effective:
+            # New value has higher confidence - accept it
+            old_value = existing.value
+            self._store[task_id][param_name] = ParameterValue(
+                value=value,
+                confidence=confidence,
+                method=method,
+                source_id=source_id
+            )
+            logger.info(
+                f"[{task_id}] Updated {param_name}: '{old_value}' -> '{value}' "
+                f"(confidence {existing_effective:.2f} -> {new_effective:.2f}, "
+                f"method={method.value}, source={source_id})"
+            )
+            return True, f"Updated: new confidence {new_effective:.2f} > existing {existing_effective:.2f}"
+        else:
+            # New value has equal or lower confidence - reject it
+            logger.debug(
+                f"[{task_id}] Rejected {param_name}='{value}' "
+                f"(new confidence {new_effective:.2f} <= existing {existing_effective:.2f})"
+            )
+            return False, f"Rejected: new confidence {new_effective:.2f} <= existing {existing_effective:.2f}"
+    
+    def update_parameters_batch(
+        self,
+        task_id: str,
+        params: Dict[str, Any],
+        confidence: float,
+        method: ExtractionMethod,
+        source_id: str = "unknown"
+    ) -> Dict[str, Tuple[bool, str]]:
+        """
+        Update multiple parameters at once with the same confidence and method.
+        
+        Returns dict of param_name -> (was_updated, reason)
+        """
+        results = {}
+        for param_name, value in params.items():
+            # Only track parameters in the TRACKED_PARAMETERS set
+            if param_name.lower() in self.TRACKED_PARAMETERS:
+                was_updated, reason = self.update_parameter(
+                    task_id, param_name.lower(), value, confidence, method, source_id
+                )
+                results[param_name] = (was_updated, reason)
+        return results
+    
+    def get_all_parameters(self, task_id: str) -> Dict[str, Any]:
+        """Get all current parameter values for a task (just values, no metadata)"""
+        if task_id not in self._store:
+            return {}
+        return {
+            param_name: pv.value 
+            for param_name, pv in self._store[task_id].items()
+        }
+    
+    def get_all_with_confidence(self, task_id: str) -> Dict[str, Dict[str, Any]]:
+        """Get all parameters with their confidence info"""
+        if task_id not in self._store:
+            return {}
+        return {
+            param_name: {
+                'value': pv.value,
+                'confidence': round(pv.effective_confidence(), 2),
+                'method': pv.method.value,
+                'source': pv.source_id
+            }
+            for param_name, pv in self._store[task_id].items()
+        }
+    
+    def clear_task(self, task_id: str) -> None:
+        """Clear all parameters for a task"""
+        if task_id in self._store:
+            del self._store[task_id]
+            logger.info(f"Cleared parameter store for task {task_id}")
+
+
+# Global instance for panel parameters
+panel_parameter_store = PanelParameterStore()
