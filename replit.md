@@ -33,7 +33,7 @@ A hybrid storage model is used:
 - **Ephemeral Task Storage**: Task-specific directories in `/tmp/tasks/{task_id}/` for uploads and outputs, automatically deleted upon task completion.
 - **Permanent Storage**: `/standards` for persistent configuration files.
 - **PostgreSQL Database** (Neon-backed, optional): Stores `task_state` for multi-turn conversational context, maintaining state across user interactions for a single active task. An in-memory dictionary serves as a fallback if PostgreSQL is not configured.
-- **Confidence-Based Parameter Tracking**: `PanelParameterStore` tracks confidence for all panel parameters to prevent lower-quality data from overwriting higher-quality information, using method weights (MANUAL: 0.95, AI_VISION: 0.85, TEXT_OCR: 0.60).
+- **Confidence-Based Parameter Tracking**: `PanelParameterStore` tracks confidence for all panel parameters to prevent lower-quality data from overwriting higher-quality information, using method weights (AI_VISION: 0.85, MANUAL: 0.70, TEXT_OCR: 0.60).
 
 ## Document Export Pipeline
 

@@ -27,10 +27,10 @@ class ExtractionMethod(Enum):
 
 # Base confidence weights per extraction method
 METHOD_CONFIDENCE_WEIGHTS = {
-    ExtractionMethod.MANUAL: 0.95,
-    ExtractionMethod.AI_VISION: 0.85,
+    ExtractionMethod.MANUAL: 0.70,       # Voice/text input from user
+    ExtractionMethod.AI_VISION: 0.85,    # Visual nameplate detection
     ExtractionMethod.AI_OCR_FALLBACK: 0.70,
-    ExtractionMethod.TEXT_OCR: 0.60,
+    ExtractionMethod.TEXT_OCR: 0.60,     # Basic text OCR
 }
 
 
@@ -536,13 +536,13 @@ class PanelParameterStore:
     
     Parameters are only updated if the new confidence exceeds the existing confidence.
     This prevents lower-quality sources (e.g., text OCR) from overwriting higher-quality
-    values (e.g., manual input or AI vision).
+    values (e.g., AI vision).
     
     Confidence weights:
-    - manual: 0.95
-    - AI vision: 0.85
+    - AI vision: 0.85 (highest - visual nameplate detection)
+    - manual: 0.70 (voice/text input from user)
     - AI OCR fallback: 0.70
-    - text OCR: 0.60
+    - text OCR: 0.60 (lowest)
     """
     
     # Parameters that support confidence tracking
