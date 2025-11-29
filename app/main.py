@@ -472,14 +472,12 @@ def run_command(payload: dict):
             task_type = active_task["task_type"]
             task_name = task_type.replace("_", " ")
             
-            # For panel_schedule, auto-generate panel_name if not provided
-            if task_type == "panel_schedule":
-                if not params.get("panel_name"):
-                    # Auto-generate panel_name with format PanelXXXXX
-                    import random
-                    panel_number = str(random.randint(10000, 99999))
-                    params["panel_name"] = f"Panel{panel_number}"
-                    logger.info(f"Auto-generated panel_name: {params['panel_name']} for task_id: {params.get('task_id')}")
+            # panel_name should already be set at task creation, but ensure it exists as fallback
+            if task_type == "panel_schedule" and not params.get("panel_name"):
+                import random
+                panel_number = str(random.randint(10000, 99999))
+                params["panel_name"] = f"Panel{panel_number}"
+                logger.info(f"Fallback panel_name generation: {params['panel_name']} for task_id: {params.get('task_id')}")
             
             update_task_parameters(session, params)
             
@@ -766,8 +764,15 @@ def run_command(payload: dict):
         if task == "panel_schedule":
             if plan.get("number_of_ckts"):
                 params["number_of_ckts"] = plan.get("number_of_ckts")
+            # Set panel_name: use provided value or auto-generate default
             if plan.get("panel_name"):
                 params["panel_name"] = plan.get("panel_name")
+            else:
+                # Auto-generate panel_name with format PanelXXXXX
+                import random
+                panel_number = str(random.randint(10000, 99999))
+                params["panel_name"] = f"Panel{panel_number}"
+                logger.info(f"Auto-generated panel_name: {params['panel_name']} at task creation")
         
         # Try to save task state, enforce 2-task limit
         try:
