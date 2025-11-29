@@ -677,7 +677,16 @@ def run_command(payload: dict):
             if old_value != new_value:
                 params["number_of_ckts"] = new_value
                 extracted_params.append(f"number of poles is {new_value}")
-        if new_plan.get("panel_name"):
+        # Only update panel_name if user explicitly mentioned it in their text
+        # Check for explicit panel name patterns to avoid AI defaulting to 'default_panel' etc.
+        import re
+        panel_name_mentioned = bool(re.search(
+            r'(?:panel\s*(?:name|id|identifier)?\s*(?:is|called|named|:)?\s*["\']?([A-Z0-9][-A-Z0-9\s]*)|(?:name|call|rename)\s*(?:the\s*)?panel)',
+            text,
+            re.IGNORECASE
+        ))
+        
+        if panel_name_mentioned and new_plan.get("panel_name"):
             old_value = params.get("panel_name")
             new_value = new_plan["panel_name"]
             if old_value != new_value:
