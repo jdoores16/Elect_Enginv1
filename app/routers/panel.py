@@ -307,22 +307,38 @@ def export_zip(
         zip_name = f"panel_{safe_panel_name}.zip"
         dest_zip = outputs_dir / zip_name
         
-        with zipfile.ZipFile(dest_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+        # Generate variable list Excel with confidence data
+        varlist_path = None
+        try:
+            from app.services.panel_parameter_store import panel_parameter_store
+            from app.io.variable_list_excel import create_variable_list_excel
+            
+            confidence_data = panel_parameter_store.get_all_confidence_data(session)
+            if confidence_data:
+                varlist_filename = excel_real_path.with_suffix("").name + "_VARLIST.xlsx"
+                varlist_path = outputs_dir / varlist_filename
+                create_variable_list_excel(
+                    parameters=ir.model_dump(),
+                    output_path=str(varlist_path),
+                    confidence_data=confidence_data
+                )
+        except Exception as e:
+            logger.warning(f"Variable list generation failed: {e}")
+        
+        # Create ZIP with all files
+        with zipfile.ZipFile(dest_zip, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
             zf.write(excel_real_path, excel_real_path.name)
             zf.write(pdf_path, pdf_path.name)
             
             # Include Word document (user-facing AI review)
             if docx_path and docx_path.exists():
                 zf.write(docx_path, docx_path.name)
+            
+            # Include variable list Excel
+            if varlist_path and varlist_path.exists():
+                zf.write(varlist_path, varlist_path.name)
         
-        # Remove individual files from outputs (only keep ZIP)
-        # Excel and PDF are in outputs_dir, docx is already there
-        if excel_real_path.exists():
-            excel_real_path.unlink()
-        if pdf_path.exists():
-            pdf_path.unlink()
-        if docx_path and docx_path.exists():
-            docx_path.unlink()
+        # Keep individual files in outputs for separate download (don't delete)
             
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
