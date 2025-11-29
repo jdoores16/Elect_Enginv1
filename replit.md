@@ -43,6 +43,17 @@ The system supports multi-format export: DXF to PDF, CSV/Excel for panel schedul
 
 Multi-pole circuits now maintain proper row and column integrity in Excel exports. Description/Breaker/Pole information is written only to the top row of a multi-pole group, while Load Amps are written only to the designated phase column for each row, ensuring electrically accurate representation.
 
+## Load Type Classification
+
+Every pole space with load_amps requires a load_type classification. Valid load types are:
+- **LTG**: Lighting loads
+- **RCP**: Receptacle loads  
+- **MTR**: Motor loads
+- **C**: Continuous loads
+- **NC**: Non-Continuous loads
+
+The variable list Excel includes a "Load Type" column that shows "NA" (Not Applicable) for all parameters except Load Amps rows, which display the actual load type code. Load type is tracked through the confidence-based aggregation system and flows from OCR/AI Vision extraction through to Excel output.
+
 # External Dependencies
 
 ## Third-Party Services
