@@ -30,7 +30,7 @@ def _load_env_files() -> None:
             break  # prefer the first one found (.env over .env.txt)
 
     if not loaded_any:
-        # Optional: keep this quiet in prod; during dev it’s useful.
+        # Optional: keep this quiet in prod; during dev it's useful.
         # print(f"[settings] No .env found at {env_candidates}")
         pass
 
@@ -38,19 +38,37 @@ def _load_env_files() -> None:
 try:
     _load_env_files()
 except Exception as e:
-    # Best practice: avoid hard crash on config load path; you’ll fail below if required vars are missing.
+    # Best practice: avoid hard crash on config load path; you'll fail below if required vars are missing.
     # print(f"[settings] Env load warning: {e}")
     pass
 
 class Settings(BaseSettings):
-    # Document required vars. Let’s fail fast if missing (no default).
-    OPENAI_API_KEY: str = Field(..., description="Project-scoped OpenAI API key starting with 'sk-'")
+    # Support both direct OpenAI keys and Replit AI Integrations
+    OPENAI_API_KEY: Optional[str] = Field(None, description="Project-scoped OpenAI API key starting with 'sk-'")
+    AI_INTEGRATIONS_OPENAI_API_KEY: Optional[str] = Field(None, description="Replit AI Integrations OpenAI API key")
+    AI_INTEGRATIONS_OPENAI_BASE_URL: Optional[str] = Field(None, description="Replit AI Integrations base URL")
     OPENAI_ORG_ID: Optional[str] = None     # Optional
     OPENAI_PROJECT: Optional[str] = None    # Optional
 
     # ---- Tunables (env-overridable) ----
     OPENAI_MODEL: str = Field("gpt-4o-mini", description="Default chat model")
     OPENAI_TIMEOUT_S: int = Field(30, description="HTTP timeout in seconds")
+    
+    @property
+    def effective_api_key(self) -> str:
+        """Get the effective API key, preferring AI Integrations if available."""
+        key = self.AI_INTEGRATIONS_OPENAI_API_KEY or self.OPENAI_API_KEY
+        if not key:
+            raise RuntimeError(
+                "Missing required environment variables. "
+                "Ensure OPENAI_API_KEY or AI_INTEGRATIONS_OPENAI_API_KEY is set."
+            )
+        return key
+    
+    @property
+    def effective_base_url(self) -> Optional[str]:
+        """Get the effective base URL for AI Integrations."""
+        return self.AI_INTEGRATIONS_OPENAI_BASE_URL
 
     # App paths (optional, but helpful to standardize)
     ROOT: Path = ROOT
@@ -66,12 +84,4 @@ class Settings(BaseSettings):
     )
 
 # Instantiate once and reuse
-try:
-    settings = Settings()
-except ValidationError as e:
-    # Best practice: fail fast with a clear message when required secrets are missing.
-    # In production, let the process crash here so Orchestrator/K8s restarts it.
-    raise RuntimeError(
-        "Missing required environment variables. "
-        "Ensure OPENAI_API_KEY is set via system env or .env."
-    ) from e
+settings = Settings()

@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 # ---- Client construction (single instance) ----
 # Best practice: build one client per process. This reduces overhead, and is easier to test/mocking.
 client = OpenAI(
-    api_key=settings.OPENAI_API_KEY,     # pulled from .env or system env
+    api_key=settings.effective_api_key,     # supports both direct OpenAI and Replit AI Integrations
+    base_url=settings.effective_base_url,   # optional: for Replit AI Integrations
     organization=settings.OPENAI_ORG_ID, # optional
     project=settings.OPENAI_PROJECT,     # optional
     timeout=settings.OPENAI_TIMEOUT_S,   # best practice: prevent hung requests

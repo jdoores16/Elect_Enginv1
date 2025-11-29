@@ -40,3 +40,4 @@ reportlab
 sqlalchemy
 uvicorn
 xlrd
+openai
