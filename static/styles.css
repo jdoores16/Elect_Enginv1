@@ -131,17 +131,6 @@ body { margin: 0; font-family: system-ui, Segoe UI, Roboto, sans-serif; backgrou
 .output-item:hover .download-btn {
   opacity: 1;
 }
-/* ZIP bundle highlight */
-.zip-item {
-  background: #064e3b;
-  border: 1px solid #10b981;
-}
-.zip-item:hover {
-  background: #065f46;
-}
-.zip-item .output-link {
-  color: #6ee7b7;
-}
 
 .build { background: #10b981; color:#06251e; border: none; padding: 12px; border-radius: 10px; font-weight: 700; cursor: pointer; }
 .build:hover { filter: brightness(1.1); }

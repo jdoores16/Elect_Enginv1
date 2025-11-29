@@ -765,7 +765,7 @@ async function refreshOutputs() {
     const info = fileInfo[ext] || { icon: '📁', label: 'File' };
     
     const li = document.createElement('li');
-    li.className = 'output-item' + (ext === '.zip' ? ' zip-item' : '');
+    li.className = 'output-item';
     
     const a = document.createElement('a');
     a.href = '/out/' + name + '?session=' + encodeURIComponent(window.currentSessionId);
