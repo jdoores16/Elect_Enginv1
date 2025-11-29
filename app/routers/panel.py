@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 # --- Internal project imports ---
 from app.schemas.panel_ir import PanelScheduleIR                  # IR schema for panel schedule
 from app.io.panel_excel import write_excel_from_ir                # IR → Excel (.xlsx), preserves template formatting
-from app.export.pdf import export_pdf_from_ir                     # IR → PDF
+from app.export.pdf import export_pdf_from_ir, export_pdf_from_excel  # PDF export
 from app.routers.preflight import _kva_formulas_per_phase         # Server-side fallback KVA formulas
 
 # --- FastAPI Router Setup ---
@@ -121,9 +121,14 @@ def export_zip(
             outputs_dir=outputs_dir,
         )
 
-        # Matching PDF next to the Excel
+        # Convert Excel to PDF using LibreOffice for exact copy
         pdf_path = excel_real_path.with_suffix(".pdf")
-        export_pdf_from_ir(ir=ir, out_pdf=str(pdf_path))
+        try:
+            export_pdf_from_excel(str(excel_real_path), str(pdf_path))
+        except Exception as e:
+            # Fall back to IR-based PDF if LibreOffice fails
+            logger.warning(f"LibreOffice PDF conversion failed, using fallback: {e}")
+            export_pdf_from_ir(ir=ir, out_pdf=str(pdf_path))
 
         # ---- AI Technical Review (Advisory Only - Never Blocks) ----
         review_data = None
