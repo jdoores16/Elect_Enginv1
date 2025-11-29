@@ -300,9 +300,13 @@ def export_zip(
                     "message": "AI review unavailable - proceeding with build"
                 }
 
-        # Zip them together using the Excel base name (user files only)
-        zip_name = excel_real_path.with_suffix("").name + ".zip"
-        dest_zip = OUT / zip_name
+        # Create single ZIP file named "panel_{panel_name}.zip" in outputs directory
+        panel_name = ir.header.panel_name or "unnamed"
+        # Sanitize panel name for filename (remove special chars)
+        safe_panel_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in panel_name)
+        zip_name = f"panel_{safe_panel_name}.zip"
+        dest_zip = outputs_dir / zip_name
+        
         with zipfile.ZipFile(dest_zip, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.write(excel_real_path, excel_real_path.name)
             zf.write(pdf_path, pdf_path.name)
@@ -310,21 +314,23 @@ def export_zip(
             # Include Word document (user-facing AI review)
             if docx_path and docx_path.exists():
                 zf.write(docx_path, docx_path.name)
+        
+        # Remove individual files from outputs (only keep ZIP)
+        # Excel and PDF are in outputs_dir, docx is already there
+        if excel_real_path.exists():
+            excel_real_path.unlink()
+        if pdf_path.exists():
+            pdf_path.unlink()
+        if docx_path and docx_path.exists():
+            docx_path.unlink()
+            
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
 
-    # ---- 5) Cleanup the ZIP after response is sent ----
-    def _cleanup(path: str):
-        try:
-            os.remove(path)
-        except OSError:
-            pass
-    background_tasks.add_task(_cleanup, str(dest_zip))
-
-    # ---- 6) Return the ZIP ----
-    return FileResponse(
-        path=str(dest_zip),
-        filename=dest_zip.name,       # e.g., panel_LP-1_208-120V.zip
-        media_type="application/zip",
-        background=background_tasks,
-    )
+    # Return success - ZIP is now in outputs directory for user to download
+    return {
+        "status": "ok",
+        "zip_file": zip_name,
+        "panel_name": ir.header.panel_name,
+        "message": f"Build complete. Download: {zip_name}"
+    }
