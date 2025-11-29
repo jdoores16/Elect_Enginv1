@@ -7,9 +7,21 @@ import logging
 from typing import List, Dict, Optional
 import json
 from openai import OpenAI
-from app.core.settings import get_settings
+from app.core.settings import settings
 
 logger = logging.getLogger(__name__)
+
+def _get_openai_client() -> Optional[OpenAI]:
+    """Get OpenAI client using effective settings."""
+    try:
+        api_key = settings.effective_api_key
+        return OpenAI(
+            api_key=api_key,
+            base_url=settings.effective_base_url
+        )
+    except RuntimeError:
+        logger.warning("OpenAI API key not configured, skipping AI extraction")
+        return None
 
 
 def ai_extract_circuits(ocr_lines: List[str], panel_name: Optional[str] = None) -> List[Dict]:
@@ -23,14 +35,11 @@ def ai_extract_circuits(ocr_lines: List[str], panel_name: Optional[str] = None) 
     Returns:
         List of circuit dictionaries with: number, description, load, breaker_amps, breaker_poles
     """
-    settings = get_settings()
-    
-    if not settings.openai_api_key:
-        logger.warning("OpenAI API key not configured, skipping AI extraction")
+    client = _get_openai_client()
+    if not client:
         return []
     
     try:
-        client = OpenAI(api_key=settings.openai_api_key)
         
         ocr_text = '\n'.join(ocr_lines)
         
@@ -105,14 +114,11 @@ def ai_extract_panel_specs(ocr_lines: List[str]) -> Dict[str, str]:
     Returns:
         Dictionary of panel specifications
     """
-    settings = get_settings()
-    
-    if not settings.openai_api_key:
-        logger.warning("OpenAI API key not configured, skipping AI extraction")
+    client = _get_openai_client()
+    if not client:
         return {}
     
     try:
-        client = OpenAI(api_key=settings.openai_api_key)
         
         ocr_text = '\n'.join(ocr_lines)
         

@@ -162,9 +162,6 @@ def summarize_intent(user_text: str) -> str:
     Return a brief, 3–5 word confirmation like 'Got it' or 'Understood'.
     Best practice: reuse the module-level client; keep low temp.
     """
-    if not settings.OPENAI_API_KEY:
-        logger.info("OpenAI API key not configured. Using fallback intent summarization.")
-        return "Got it."
     try:
         resp = _chat_with_retries(
             messages=[
@@ -175,7 +172,6 @@ def summarize_intent(user_text: str) -> str:
             temperature=0.2,
             max_tokens=16,
         )
-        # Defensive access: ensure choices exist
         if not resp.choices:
             logger.error("LLM returned no choices for summarize_intent.")
             return "Got it."
@@ -417,94 +413,82 @@ def extract_panel_specs_from_text(user_text: str) -> Dict[str, str]:
     return specs
 
 
+def _keyword_based_fallback(user_text: str, files: List[str], reason: str = "") -> Dict[str, Any]:
+    """Keyword-based fallback plan when LLM is not available or fails."""
+    import re
+    text_lower = user_text.lower().strip()
+    task = None
+    
+    if any(kw in text_lower for kw in ["panel schedule", "panelboard schedule", "panel board schedule", "panelboard", "panel board", "circuit schedule"]):
+        task = "panel_schedule"
+    elif any(kw in text_lower for kw in ["power plan", "receptacle plan", "outlet plan", "power layout"]):
+        task = "power_plan"
+    elif any(kw in text_lower for kw in ["lighting plan", "light plan", "fixture plan", "illumination plan"]):
+        task = "lighting_plan"
+    elif any(kw in text_lower for kw in ["revit", "dynamo", "bim"]):
+        task = "revit_package"
+    elif any(kw in text_lower for kw in ["one line", "oneline", "one-line", "single line"]):
+        task = "one_line"
+    else:
+        task = "panel_schedule"
+    
+    number_of_ckts = None
+    panel_name = None
+    
+    num_match = re.search(r'\b(\d+)\s*(?:circuits?|ckts?|spaces?)?\b', text_lower)
+    if num_match:
+        try:
+            num = int(num_match.group(1))
+            if 18 <= num <= 84:
+                number_of_ckts = num if num % 2 == 0 else num + 1
+                logger.info(f"Extracted number_of_ckts={number_of_ckts} from text")
+        except ValueError:
+            pass
+    
+    panel_patterns = [
+        r'panel\s+name\s+(?:is\s+)?([A-Z0-9][A-Z0-9\-\s]*[A-Z0-9]|[A-Z0-9])',
+        r'panel\s+(?:is\s+)?called\s+([A-Z0-9][A-Z0-9\-\s]*[A-Z0-9]|[A-Z0-9])',
+        r'panel\s+(?:is\s+)?named\s+([A-Z0-9][A-Z0-9\-\s]*[A-Z0-9]|[A-Z0-9])',
+        r'panel\s+identifier\s+(?:is\s+)?([A-Z0-9][A-Z0-9\-\s]*[A-Z0-9]|[A-Z0-9])'
+    ]
+    for pattern in panel_patterns:
+        match = re.search(pattern, user_text, re.IGNORECASE)
+        if match:
+            panel_name = match.group(1).strip().upper()
+            logger.info(f"Extracted panel_name={panel_name} from text")
+            break
+    
+    plan = {
+        "task": task,
+        "project": "Demo Project",
+        "service_voltage": "480Y/277V",
+        "service_amperes": 2000,
+        "panels": [{"name":"MDS","voltage":"480Y/277V","bus_amperes":1200}],
+        "loads": [{"name":"CHWP-1","kva":50,"panel":"MDS"}],
+        "notes": f"Keyword-based fallback (detected: {task}). {reason}"
+    }
+    if number_of_ckts:
+        plan["number_of_ckts"] = number_of_ckts
+    if panel_name:
+        plan["panel_name"] = panel_name
+    return plan
+
+
 def plan_from_prompt(user_text: str, bucket_dir: str) -> Dict[str, Any]:
     """
     Main planner: sends the schema + files to the LLM and expects JSON back.
-    Falls back to a keyword-based plan if the LLM call fails or key is missing.
+    Falls back to a keyword-based plan if the LLM call fails.
     """
     files = _list_bucket(bucket_dir)
-    if not settings.OPENAI_API_KEY:
-        logger.warning("OpenAI API key not configured. Using keyword-based fallback. Configure OPENAI_API_KEY for AI-powered planning.")
-        
-        # Keyword detection for task type - order matters, check most specific first
-        text_lower = user_text.lower().strip()
-        task = None  # no default yet
-        
-        # Check for panel schedule first (most specific)
-        if any(kw in text_lower for kw in ["panel schedule", "panelboard schedule", "panel board schedule", "panelboard", "panel board", "circuit schedule"]):
-            task = "panel_schedule"
-        # Power plan
-        elif any(kw in text_lower for kw in ["power plan", "receptacle plan", "outlet plan", "power layout"]):
-            task = "power_plan"
-        # Lighting plan
-        elif any(kw in text_lower for kw in ["lighting plan", "light plan", "fixture plan", "illumination plan"]):
-            task = "lighting_plan"
-        # Revit/BIM
-        elif any(kw in text_lower for kw in ["revit", "dynamo", "bim"]):
-            task = "revit_package"
-        # One line diagram (check last, broader keywords)
-        elif any(kw in text_lower for kw in ["one line", "oneline", "one-line", "single line"]):
-            task = "one_line"
-        # Default fallback
-        else:
-            task = "panel_schedule"  # Default to panel schedule instead of one_line
-        
-        # Extract parameters if present in text
-        import re
-        number_of_ckts = None
-        panel_name = None
-        
-        # Look for patterns like "42", "42 circuits", "forty-two"
-        num_match = re.search(r'\b(\d+)\s*(?:circuits?|ckts?|spaces?)?\b', text_lower)
-        if num_match:
-            try:
-                num = int(num_match.group(1))
-                # Validate and round to even number within range
-                if 18 <= num <= 84:
-                    number_of_ckts = num if num % 2 == 0 else num + 1
-                    logger.info(f"Extracted number_of_ckts={number_of_ckts} from text")
-            except ValueError:
-                pass
-        
-        # Look for panel name patterns - only explicit panel-specific phrases to avoid false positives
-        # Allow alphanumeric, spaces, hyphens in panel names (e.g., "Panel A", "PP-TEST1", "LP 1A")
-        panel_patterns = [
-            r'panel\s+name\s+(?:is\s+)?([A-Z0-9][A-Z0-9\-\s]*[A-Z0-9]|[A-Z0-9])',
-            r'panel\s+(?:is\s+)?called\s+([A-Z0-9][A-Z0-9\-\s]*[A-Z0-9]|[A-Z0-9])',
-            r'panel\s+(?:is\s+)?named\s+([A-Z0-9][A-Z0-9\-\s]*[A-Z0-9]|[A-Z0-9])',
-            r'panel\s+identifier\s+(?:is\s+)?([A-Z0-9][A-Z0-9\-\s]*[A-Z0-9]|[A-Z0-9])'
-        ]
-        for pattern in panel_patterns:
-            match = re.search(pattern, user_text, re.IGNORECASE)
-            if match:
-                panel_name = match.group(1).strip().upper()
-                logger.info(f"Extracted panel_name={panel_name} from text")
-                break
-        
-        plan = {
-          "task": task,
-          "project": "Demo Project",
-          "service_voltage": "480Y/277V",
-          "service_amperes": 2000,
-          "panels": [{"name":"MDS","voltage":"480Y/277V","bus_amperes":1200}],
-          "loads": [{"name":"CHWP-1","kva":50,"panel":"MDS"}],
-          "notes": f"Keyword-based fallback (detected: {task}). Configure OPENAI_API_KEY for better parsing."
-        }
-        if number_of_ckts:
-            plan["number_of_ckts"] = number_of_ckts
-        if panel_name:
-            plan["panel_name"] = panel_name
-        return plan
+    
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=settings.OPENAI_API_KEY)
         user = (
           f"Command: {user_text}\n"
           f"Available files: {files}\n"
           f"Return ONLY JSON conforming to this schema: {json.dumps(SCHEMA)}"
         )
         resp = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=DEFAULT_MODEL,
             messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":user}],
             response_format={"type": "json_object"},
             temperature=0.2
@@ -515,38 +499,7 @@ def plan_from_prompt(user_text: str, bucket_dir: str) -> Dict[str, Any]:
         return data
     except json.JSONDecodeError as e:
         logger.error(f"OpenAI returned invalid JSON: {e}. Using fallback plan.")
-        return {
-          "task": "one_line",
-          "project": "Fallback (Invalid AI Response)",
-          "service_voltage": "480Y/277V",
-          "service_amperes": 2000,
-          "panels": [{"name":"MDS","voltage":"480Y/277V","bus_amperes":1200}],
-          "loads": [{"name":"GEN-1","kva":25,"panel":"MDS"}],
-          "notes": f"AI returned invalid JSON format."
-        }
+        return _keyword_based_fallback(user_text, files, "AI returned invalid JSON format.")
     except Exception as e:
         logger.error(f"OpenAI API error during plan generation: {e.__class__.__name__}: {e}. Using keyword-based fallback.")
-        # Use keyword-based detection when OpenAI fails
-        text_lower = user_text.lower().strip()
-        task = "panel_schedule"  # Default to panel schedule
-        
-        if any(kw in text_lower for kw in ["panel schedule", "panelboard schedule", "panel board schedule", "panelboard", "panel board", "circuit schedule"]):
-            task = "panel_schedule"
-        elif any(kw in text_lower for kw in ["power plan", "receptacle plan", "outlet plan", "power layout"]):
-            task = "power_plan"
-        elif any(kw in text_lower for kw in ["lighting plan", "light plan", "fixture plan", "illumination plan"]):
-            task = "lighting_plan"
-        elif any(kw in text_lower for kw in ["revit", "dynamo", "bim"]):
-            task = "revit_package"
-        elif any(kw in text_lower for kw in ["one line", "oneline", "one-line", "single line"]):
-            task = "one_line"
-        
-        return {
-          "task": task,
-          "project": "Project",
-          "service_voltage": "480Y/277V",
-          "service_amperes": 2000,
-          "panels": [{"name":"MDS","voltage":"480Y/277V","bus_amperes":1200}],
-          "loads": [{"name":"GEN-1","kva":25,"panel":"MDS"}],
-          "notes": f"LLM error: {e.__class__.__name__}"
-        }
+        return _keyword_based_fallback(user_text, files, f"LLM error: {e.__class__.__name__}")
