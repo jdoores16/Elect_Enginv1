@@ -9,8 +9,8 @@ from app.schemas.panel_ir import PanelScheduleIR
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_PATH = ROOT / "templates" / "panelboard_template.xlsx"  # master template
 
-ODD_COLS  = {"desc": "A", "phaseA": "B", "phaseB": "C", "phaseC": "D", "pole": "E", "breaker": "F"}
-EVEN_COLS = {"desc": "O", "phaseA": "L", "phaseB": "M", "phaseC": "N", "pole": "K", "breaker": "J"}
+ODD_COLS  = {"desc": "A", "phaseA": "B", "phaseB": "C", "phaseC": "D", "pole": "E", "breaker": "F", "load_type": "G"}
+EVEN_COLS = {"desc": "O", "phaseA": "L", "phaseB": "M", "phaseC": "N", "pole": "K", "breaker": "J", "load_type": "I"}
 
 def _phase_slot_for_circuit(ckt: int) -> str:
     i = (ckt - 1) % 6
@@ -99,6 +99,10 @@ def write_excel_from_ir(
         ws[f"{cols['breaker']}{r}"].value = float(c.breaker_amps)
         ws[f"{cols['pole']}{r}"].value = int(poles)
         
+        # Write load type if available (LTG, RCP, MTR, C, NC)
+        if c.load_type:
+            ws[f"{cols['load_type']}{r}"].value = c.load_type
+        
         # Write load amps to the phase slot for THIS circuit number
         # Maintain row/column integrity: each circuit gets its own phase column
         phase_slot = _phase_slot_for_circuit(c.ckt)
@@ -112,10 +116,11 @@ def write_excel_from_ir(
             if continuation_row > 53:  # Don't exceed panel template bounds
                 break
             
-            # Write "-" for description, breaker, and pole in continuation rows
+            # Write "-" for description, breaker, pole, and load_type in continuation rows
             ws[f"{cols['desc']}{continuation_row}"].value = "-"
             ws[f"{cols['breaker']}{continuation_row}"].value = "-"
             ws[f"{cols['pole']}{continuation_row}"].value = "-"
+            ws[f"{cols['load_type']}{continuation_row}"].value = "-"
             
             # For load_amps, maintain row/column integrity:
             # Write load_amps to the correct phase column based on continuation circuit number
