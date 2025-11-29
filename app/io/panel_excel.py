@@ -154,5 +154,12 @@ def write_excel_from_ir(
     tab_wire    = _get_param(ir, "WIRE")
     ws.title = _sanitize_sheet_title(f"{tab_voltage}, {tab_phase}, {tab_wire}".strip(", "))
 
+    # Add document metadata to help reduce antivirus false positives
+    wb.properties.creator = "AI Design Engineer"
+    wb.properties.title = f"Panel Schedule - {ir.header.panel_name}"
+    wb.properties.subject = "Electrical Panel Schedule"
+    wb.properties.category = "Engineering Document"
+    wb.properties.company = "AI Design Engineer"
+    
     wb.save(out_p)
     return out_p
