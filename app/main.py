@@ -1202,6 +1202,17 @@ def export_build_zip(payload: dict):
         xlsx_name = _short_filename('panel_schedule', 'xlsx', session)
         apply_template_to_data(circuits, panel_name, template, OUT / xlsx_name, panel_specs)
         generated.append(xlsx_name)
+        
+        # Generate Variable List Excel
+        from app.io.variable_list_excel import generate_variable_list_excel
+        varlist_name = _short_filename('variable_list', 'xlsx', session)
+        generate_variable_list_excel(
+            output_path=OUT / varlist_name,
+            panel_name=panel_name,
+            panel_specs=panel_specs,
+            circuits=plan.get("circuits", {})
+        )
+        generated.append(varlist_name)
 
     # Optional CSV panel schedule if present in plan
     if "panel_schedule" in plan and isinstance(plan["panel_schedule"], dict):
@@ -1257,6 +1268,7 @@ def _short_filename(file_type: str, extension: str, session: str | None = None) 
         'power_plan': 'pp',
         'lighting_plan': 'lp',
         'panel_schedule': 'ps',
+        'variable_list': 'vl',
         'build': 'bld',
         'summary': 'sum'
     }
