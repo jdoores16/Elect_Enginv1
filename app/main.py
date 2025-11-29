@@ -229,6 +229,17 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
                         if value and value != "MISSING":
                             params["panel_specs"][field_key] = value
                     
+                    # If OCR found a panel_name, update the main panel_name parameter
+                    # This overrides the auto-generated default
+                    ocr_panel_name = panel_specs.get('panel_name')
+                    if ocr_panel_name and ocr_panel_name != "MISSING":
+                        old_name = params.get("panel_name", "")
+                        # Only log if it's actually changing from the auto-generated name
+                        if old_name != ocr_panel_name:
+                            logger.info(f"OCR detected panel_name: '{ocr_panel_name}' (replacing '{old_name}')")
+                            params["panel_name"] = ocr_panel_name
+                            extracted.append(f"panel name: {ocr_panel_name}")
+                    
                     # Use aggregation service to combine data from multiple sources
                     from app.services.circuit_aggregation import (
                         circuit_aggregation_service, 
