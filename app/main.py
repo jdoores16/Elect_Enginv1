@@ -215,10 +215,11 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
                     if value and value != "MISSING":
                         extracted.append(f"{field_key}: {value}")
                 
-                # Also extract circuit data
+                # Also extract circuit data using aggregation service
                 active_task = get_active_task(session)
                 if active_task:
                     params = active_task["parameters"]
+                    task_id = params.get("task_id", session)
                     
                     # Merge panel specs into task state
                     if "panel_specs" not in params:
@@ -228,98 +229,71 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
                         if value and value != "MISSING":
                             params["panel_specs"][field_key] = value
                     
-                    # Store circuit data
+                    # Use aggregation service to combine data from multiple sources
+                    from app.services.circuit_aggregation import (
+                        circuit_aggregation_service, 
+                        ExtractionMethod
+                    )
+                    
+                    circuits_list = visual_result.get('circuits', [])
+                    visual_breakers = visual_result.get('visual_breaker_detection', {})
+                    
+                    # Add observations and get notifications (includes multi-source confidence boost)
+                    breaker_notifications = circuit_aggregation_service.add_observations_from_ocr_result(
+                        task_id=task_id,
+                        source_id=f.filename,
+                        circuits=circuits_list,
+                        method=ExtractionMethod.TEXT_OCR,
+                        visual_breakers=visual_breakers
+                    )
+                    
+                    # Get resolved circuits with combined confidence
+                    all_resolved = circuit_aggregation_service.get_all_resolved_circuits(task_id)
+                    
+                    # Update task parameters with resolved circuit data
                     if "circuits" not in params:
                         params["circuits"] = {}
                     
                     circuit_count = 0
-                    circuits_list = visual_result.get('circuits', [])
-                    
-                    for circuit_info in circuits_list:
-                        # Skip circuits with MISSING data
-                        desc = circuit_info.get('description', 'MISSING')
-                        amps = circuit_info.get('breaker_amps', 'MISSING')
-                        poles = circuit_info.get('breaker_poles', 'MISSING')
+                    for circuit_num, resolved in all_resolved.items():
+                        params["circuits"][str(circuit_num)] = {
+                            'description': resolved.description.value or '',
+                            'breaker_amps': resolved.breaker_amps.value or 0,
+                            'poles': resolved.poles.value or 1,
+                            'load_amps': resolved.load_amps.value or 0,
+                            'is_continuation': False,
+                            'confidence': resolved.to_dict()['confidence'],
+                            'sources': resolved.to_dict()['sources'],
+                            'has_conflicts': resolved.needs_review
+                        }
+                        circuit_count += 1
                         
-                        if desc != 'MISSING' or amps != 'MISSING':
-                            circuit_num = circuit_info.get('number', '')
-                            
-                            # Visual detection flag
-                            visual_detected = circuit_info.get('visual_pole_detection', False)
-                            detection_method = circuit_info.get('detection_method', '')
-                            
-                            # Convert to the format used by the chat handler
-                            params["circuits"][str(circuit_num)] = {
-                                'description': desc if desc != 'MISSING' else '',
-                                'breaker_amps': int(amps) if amps != 'MISSING' else 0,
-                                'poles': int(poles) if poles != 'MISSING' else 1,
-                                'load_amps': 0,  # OCR doesn't extract load_amps
-                                'is_continuation': False,
-                                'visual_pole_detection': visual_detected
-                            }
-                            circuit_count += 1
-                            
-                            # Build "Breaker information found" notification for each circuit
-                            info_parts = []
-                            if poles != 'MISSING':
-                                info_parts.append(f"{poles}-pole")
-                            if amps != 'MISSING':
-                                info_parts.append(f"{amps}A")
-                            if desc != 'MISSING':
-                                info_parts.append(f"'{desc}'")
-                            
-                            if info_parts:
-                                notification = f"BREAKER INFO FOUND - Circuit {circuit_num}: {', '.join(info_parts)}"
-                                if visual_detected:
-                                    notification += f" (detected via {detection_method})"
-                                breaker_notifications.append(notification)
-                                logger.info(notification)
-                            
-                            # Add to extracted list for user feedback
-                            parts = [f"circuit {circuit_num}"]
-                            if desc != 'MISSING':
-                                parts.append(f"'{desc}'")
-                            if poles != 'MISSING' and int(poles) > 1:
-                                pole_suffix = f"{poles}-pole"
-                                if visual_detected:
-                                    pole_suffix += f" (visual: {detection_method})"
-                                parts.append(pole_suffix)
-                            if amps != 'MISSING':
-                                parts.append(f"{amps}A")
-                            extracted.append(" ".join(parts))
+                        # Add to extracted list for user feedback
+                        parts = [f"circuit {circuit_num}"]
+                        if resolved.description.value:
+                            parts.append(f"'{resolved.description.value}'")
+                        if resolved.poles.value and resolved.poles.value > 1:
+                            parts.append(f"{resolved.poles.value}-pole")
+                        if resolved.breaker_amps.value:
+                            parts.append(f"{resolved.breaker_amps.value}A")
+                        
+                        # Add confidence info if from multiple sources
+                        if resolved.observations_count > 1:
+                            overall_conf = resolved.to_dict()['confidence']['overall']
+                            parts.append(f"(confidence: {int(overall_conf * 100)}%)")
+                        
+                        extracted.append(" ".join(parts))
+                    
+                    # Get aggregation summary for this task
+                    agg_summary = circuit_aggregation_service.get_aggregation_summary(task_id)
                     
                     if circuit_count > 0:
                         logger.info(f"Visual OCR extracted {circuit_count} circuits from {f.filename}")
                     
-                    # Log visual detection results and add AI Vision breaker notifications
-                    visual_breakers = visual_result.get('visual_breaker_detection', {})
+                    # Log visual detection results
                     if visual_breakers.get('visual_detection_successful') or visual_breakers.get('ai_vision_success'):
                         multipole_count = len(visual_breakers.get('multipole_groups', {}))
                         logger.info(f"Visual breaker detection found {multipole_count} multi-pole groups")
-                        
-                        # Add notifications for AI Vision detected breakers
-                        ai_breakers = visual_breakers.get('breakers', [])
-                        for breaker in ai_breakers:
-                            circuits = breaker.get('circuits', [])
-                            poles = breaker.get('poles')  # Don't default - only notify if actually provided
-                            amps = breaker.get('amps')    # Don't default - only notify if actually provided
-                            desc = breaker.get('description')  # Don't default - only notify if actually provided
-                            
-                            circuit_str = ', '.join(map(str, circuits)) if circuits else 'unknown'
-                            info_parts = []
-                            if poles is not None:
-                                info_parts.append(f"{poles}-pole")
-                            if amps is not None:
-                                info_parts.append(f"{amps}A")
-                            if desc and desc.strip():
-                                info_parts.append(f"'{desc}'")
-                            
-                            # Only notify if we actually have breaker information
-                            if info_parts and circuits:
-                                notification = f"BREAKER INFO FOUND - Circuit(s) {circuit_str}: {', '.join(info_parts)} (AI Vision)"
-                                if notification not in breaker_notifications:
-                                    breaker_notifications.append(notification)
-                                    logger.info(notification)
                     
                     visual_nameplate = visual_result.get('visual_nameplate_detection', {})
                     if visual_nameplate.get('nameplate_detected'):
@@ -327,6 +301,10 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
                     
                     update_task_parameters(session, params)
                     logger.info(f"Visual OCR extracted and stored {len(extracted)} parameters from {f.filename}")
+                    
+                    # Log aggregation summary
+                    if agg_summary.get('total_observations', 0) > agg_summary.get('total_circuits', 0):
+                        logger.info(f"Aggregation: {agg_summary['total_observations']} observations across {agg_summary['total_circuits']} circuits from {len(agg_summary.get('sources', []))} sources")
                 
                 if extracted or breaker_notifications:
                     ocr_results.append({
@@ -334,8 +312,9 @@ async def upload(files: List[UploadFile] = File(...), session: str | None = None
                         "parameters": extracted,
                         "breaker_notifications": breaker_notifications,
                         "confidence": round(visual_result.get('confidence', 0) * 100, 1),
-                        "visual_breaker_detection": visual_breakers.get('visual_detection_successful', False),
-                        "visual_nameplate_detection": visual_nameplate.get('nameplate_detected', False)
+                        "visual_breaker_detection": visual_breakers.get('visual_detection_successful', False) or visual_breakers.get('ai_vision_success', False),
+                        "visual_nameplate_detection": visual_nameplate.get('nameplate_detected', False),
+                        "aggregation_summary": agg_summary if 'agg_summary' in locals() else None
                     })
                 
             except Exception as e:
