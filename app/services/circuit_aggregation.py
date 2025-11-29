@@ -248,13 +248,21 @@ class CircuitAggregationService:
                 except (ValueError, TypeError):
                     poles = None
             
+            load_type = circuit.get('load_type')
+            if load_type == 'MISSING':
+                load_type = None
+            elif load_type is not None:
+                load_type = str(load_type).upper().strip()
+                if load_type not in ['LTG', 'RCP', 'MTR', 'C', 'NC']:
+                    load_type = None
+            
             # Check for visual pole detection override
             detection_method = method
             if circuit.get('visual_pole_detection'):
                 detection_method = ExtractionMethod.AI_VISION
             
             # Skip if no actual data
-            if desc is None and amps is None and poles is None:
+            if desc is None and amps is None and poles is None and load_type is None:
                 continue
             
             # Get existing resolved data before adding
@@ -271,7 +279,9 @@ class CircuitAggregationService:
                 breaker_amps=amps,
                 amps_confidence=0.8,
                 poles=poles,
-                poles_confidence=0.9 if circuit.get('visual_pole_detection') else 0.7
+                poles_confidence=0.9 if circuit.get('visual_pole_detection') else 0.7,
+                load_type=load_type,
+                load_type_confidence=0.8
             )
             
             # Get new resolved data after adding
@@ -286,6 +296,7 @@ class CircuitAggregationService:
                 existing_poles = existing.poles.value if existing else None
                 existing_amps = existing.breaker_amps.value if existing else None
                 existing_desc = existing.description.value if existing else None
+                existing_load_type = existing.load_type.value if existing else None
                 
                 if new_resolved.poles.value and new_resolved.poles.value != existing_poles:
                     changed_parts.append(f"{new_resolved.poles.value}-pole")
@@ -295,6 +306,9 @@ class CircuitAggregationService:
                 
                 if new_resolved.description.value and new_resolved.description.value != existing_desc:
                     changed_parts.append(f"'{new_resolved.description.value}'")
+                
+                if new_resolved.load_type.value and new_resolved.load_type.value != existing_load_type:
+                    changed_parts.append(f"type:{new_resolved.load_type.value}")
                 
                 # Only notify if something actually changed
                 if changed_parts:

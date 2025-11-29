@@ -1007,7 +1007,8 @@ def build_panel_from_session(payload: dict):
                 phA=poles >= 1,
                 phB=poles >= 2,
                 phC=poles >= 3,
-                description=ckt_data.get("description", "")
+                description=ckt_data.get("description", ""),
+                load_type=ckt_data.get("load_type")
             ))
         except Exception as e:
             logger.error(f"Error processing circuit {ckt_num_str}: {e}")

@@ -143,6 +143,7 @@ def generate_variable_list_excel(
             breaker_amps = circuit_data.get('breaker_amps', 0)
             poles = circuit_data.get('poles', 1)
             load_amps = circuit_data.get('load_amps', 0)
+            load_type = circuit_data.get('load_type', '')
             circuit_conf = circuit_data.get('confidence', 0)
             
             add_variable(f"Pole Space {circuit_num} Description", desc, f"circuit_{circuit_num}_description")
@@ -150,6 +151,8 @@ def generate_variable_list_excel(
             add_variable(f"Pole Space {circuit_num} Poles", f"{poles}P" if poles else "", f"circuit_{circuit_num}_poles")
             if load_amps:
                 add_variable(f"Pole Space {circuit_num} Load Amps", f"{load_amps}A", f"circuit_{circuit_num}_load")
+            if load_type:
+                add_variable(f"Pole Space {circuit_num} Load Type", load_type, f"circuit_{circuit_num}_load_type")
     
     ws.freeze_panes = 'A2'
     
