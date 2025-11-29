@@ -30,3 +30,10 @@ cache/
 .pytype/
 .ruff_cache/
 .ipynb_checkpoints/
+
+# Josh local helper stuff
+dev_notes.md
+dev_notes/
+backup setup.png
+new version repo.png
+import_single_version.ps1
