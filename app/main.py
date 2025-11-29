@@ -1284,14 +1284,40 @@ def export_build_zip(payload: dict):
         apply_template_to_data(circuits, panel_name, template, OUT / xlsx_name, panel_specs)
         generated.append(xlsx_name)
         
-        # Generate Variable List Excel
+        # Generate Variable List Excel with confidence data
         from app.io.variable_list_excel import generate_variable_list_excel
+        from app.services.circuit_aggregation import panel_parameter_store, circuit_aggregation_service
+        
         varlist_name = _short_filename('variable_list', 'xlsx', session)
+        
+        task_id = plan.get("task_id", session)
+        confidence_data = {}
+        
+        if task_id:
+            param_conf = panel_parameter_store.get_all_with_confidence(task_id)
+            for param_name, info in param_conf.items():
+                confidence_data[param_name] = {'effective_confidence': info.get('confidence', 0)}
+            
+            resolved_circuits = circuit_aggregation_service.get_all_resolved_circuits(task_id)
+            for circuit_num, resolved in resolved_circuits.items():
+                circuit_dict = resolved.to_dict()
+                conf_info = circuit_dict.get('confidence', {})
+                desc_conf = conf_info.get('description', 0) if isinstance(conf_info, dict) else conf_info
+                breaker_conf = conf_info.get('breaker_amps', 0) if isinstance(conf_info, dict) else conf_info
+                poles_conf = conf_info.get('poles', 0) if isinstance(conf_info, dict) else conf_info
+                overall_conf = conf_info.get('overall', 0) if isinstance(conf_info, dict) else conf_info
+                
+                confidence_data[f"circuit_{circuit_num}_description"] = {'effective_confidence': desc_conf}
+                confidence_data[f"circuit_{circuit_num}_breaker"] = {'effective_confidence': breaker_conf}
+                confidence_data[f"circuit_{circuit_num}_poles"] = {'effective_confidence': poles_conf}
+                confidence_data[f"circuit_{circuit_num}_load"] = {'effective_confidence': overall_conf}
+        
         generate_variable_list_excel(
             output_path=OUT / varlist_name,
             panel_name=panel_name,
             panel_specs=panel_specs,
-            circuits=plan.get("circuits", {})
+            circuits=plan.get("circuits", {}),
+            confidence_data=confidence_data
         )
         generated.append(varlist_name)
 
